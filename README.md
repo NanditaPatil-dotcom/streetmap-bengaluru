@@ -1,2 +1,2 @@
-# openstreetmap-bengaluru
+# streetmap-bengaluru
 saga of openstreetmap and reddit stuff 

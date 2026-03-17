@@ -1,21 +1,58 @@
 import connectDB from "@/lib/mongodb";
 import Place from "@/models/Place";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(req) {
-  await connectDB();
+export async function GET(req: NextRequest) {
+  try {
+    await connectDB();
 
-  const places = await Place.find();
+    const { searchParams } = new URL(req.url);
+    const category = searchParams.get("category");
+    const mode = searchParams.get("mode");
+    const area = searchParams.get("area");
+    const openNow = searchParams.get("openNow");
 
-  return NextResponse.json(places);
-}
+    const query: Record<string, unknown> = {};
 
-export async function POST(req) {
-  await connectDB();
+    if (category && category !== "normal") {
+      query.category = category;
+    }
 
-  const body = await req.json();
+    if (area) {
+      query.area = area.trim().toLowerCase();
+    }
 
-  const newPlace = await Place.create(body);
+    if (mode) {
+      const modeTags: Record<string, string[]> = {
+        morning: ["breakfast", "park", "gym"],
+        noon: ["lunch", "work"],
+        evening: ["snacks", "dessert"],
+        night: ["dinner", "late-night"],
+      };
 
-  return NextResponse.json(newPlace);
+      const tags = modeTags[mode];
+
+      if (tags?.length) {
+        query.tags = { $in: tags };
+      }
+    }
+
+    if (openNow === "true") {
+      const now = new Date();
+      const currentTime = now.toTimeString().slice(0, 5); // "HH:MM"
+
+      query.openTime = { $lte: currentTime };
+      query.closeTime = { $gte: currentTime };
+    }
+
+    const places = await Place.find(query).lean();
+
+    return NextResponse.json(places);
+  } catch (error) {
+    console.error("Failed to fetch places", error);
+    return NextResponse.json(
+      { error: "Failed to fetch places" },
+      { status: 500 }
+    );
+  }
 }

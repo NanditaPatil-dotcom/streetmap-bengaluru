@@ -9,3 +9,13 @@ export async function GET(req) {
 
   return NextResponse.json(places);
 }
+
+export async function POST(req) {
+  await connectDB();
+
+  const body = await req.json();
+
+  const newPlace = await Place.create(body);
+
+  return NextResponse.json(newPlace);
+}

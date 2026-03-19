@@ -15,7 +15,7 @@ type Props = {
   setFilters: (filters: FiltersState) => void;
 };
 
-type SectionId = "location" | "quality" | "interests";
+type SectionId = "location";
 
 const filterSections: {
   id: SectionId;
@@ -23,8 +23,6 @@ const filterSections: {
   helper: string;
 }[] = [
   { id: "location", label: "Location", helper: "Area" },
-  { id: "quality", label: "Quality", helper: "Min rating" },
-  { id: "interests", label: "Interests", helper: "Tags" },
 ];
 
 const locationOptions = [
@@ -47,8 +45,15 @@ const suggestedTags = [
   "late-night",
 ];
 
+const ratingMin = 0;
+const ratingMax = 5;
+const ratingStep = 1;
+
 export default function Filters({ filters, setFilters }: Props) {
   const [openSection, setOpenSection] = useState<SectionId | null>("location");
+  const ratingValue = filters.rating ? Number(filters.rating) : ratingMin;
+  const ratingProgress =
+    ((ratingValue - ratingMin) / (ratingMax - ratingMin)) * 100;
 
   const toggleArea = (area: string) => {
     const normalizedArea = area.toLowerCase();
@@ -149,85 +154,97 @@ export default function Filters({ filters, setFilters }: Props) {
                       </div>
                     )}
 
-                    {section.id === "quality" && (
-                      <div>
-                        <p className="mb-2 text-sm font-semibold text-white/90">
-                          Min Rating
-                        </p>
-                        <select
-                          value={filters.rating || ""}
-                          onChange={(e) =>
-                            setFilters({ ...filters, rating: e.target.value })
-                          }
-                          className="w-full rounded-2xl bg-white/8 px-4 py-3 text-sm text-white outline-none transition focus:bg-white/12"
-                        >
-                          <option value="" className="text-[#111111]">
-                            Any
-                          </option>
-                          <option value="4" className="text-[#111111]">
-                            4+
-                          </option>
-                          <option value="3" className="text-[#111111]">
-                            3+
-                          </option>
-                        </select>
-                      </div>
-                    )}
-
-                    {section.id === "interests" && (
-                      <div>
-                        <p className="mb-2 text-sm font-semibold text-white/90">
-                          Tags
-                        </p>
-                        <input
-                          type="text"
-                          placeholder="e.g. breakfast"
-                          value={filters.tag || ""}
-                          onChange={(e) =>
-                            setFilters({
-                              ...filters,
-                              tag: e.target.value.toLowerCase(),
-                            })
-                          }
-                          className="w-full rounded-2xl bg-white/8 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:bg-white/12"
-                        />
-                        <div className="mt-3">
-                          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/45">
-                            Suggested
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {suggestedTags.map((tag) => {
-                              const isActive = filters.tag === tag;
-
-                              return (
-                                <button
-                                  key={tag}
-                                  type="button"
-                                  onClick={() =>
-                                    setFilters({
-                                      ...filters,
-                                      tag: isActive ? "" : tag,
-                                    })
-                                  }
-                                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                                    isActive
-                                      ? "bg-white text-[#111111]"
-                                      : "bg-white/8 text-white/75 hover:bg-white/12 hover:text-white"
-                                  }`}
-                                >
-                                  {tag}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
             );
           })}
+
+          <div className="px-4 py-4">
+            <p className="mb-2 text-sm font-semibold text-white/90">
+              Min Rating
+            </p>
+            <div className="p-4">
+              <div className="relative pt-10">
+                {ratingValue > ratingMin && (
+                  <div
+                    className="absolute top-0 -translate-x-1/2 rounded-xl px-2.5 py-1 text-xs font-medium text-white"
+                    style={{
+                      left: `calc(${ratingProgress}% + ${8 - ratingProgress * 0.16}px)`,
+                    }}
+                  >
+                    {ratingValue}
+                  </div>
+                )}
+
+                <input
+                  type="range"
+                  min={ratingMin}
+                  max={ratingMax}
+                  step={ratingStep}
+                  value={ratingValue}
+                  onChange={(e) => {
+                    const nextValue = Number(e.target.value);
+
+                    setFilters({
+                      ...filters,
+                      rating: nextValue <= ratingMin ? "" : String(nextValue),
+                    });
+                  }}
+                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-transparent [&::-webkit-slider-runnable-track]:h-0.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-transparent [&::-webkit-slider-thumb]:-mt-[7px] [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#d9d6ff] [&::-webkit-slider-thumb]:shadow-[0_0_0_4px_rgba(217,214,255,0.16)] [&::-moz-range-track]:h-0.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-transparent [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-[#d9d6ff] [&::-moz-range-thumb]:shadow-[0_0_0_4px_rgba(217,214,255,0.16)]"
+                  style={{
+                    background: `linear-gradient(to right, #d9d6ff 0%, #d9d6ff ${ratingProgress}%, rgba(255,255,255,0.2) ${ratingProgress}%, rgba(255,255,255,0.2) 100%)`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="px-4 py-4">
+            <p className="mb-2 text-sm font-semibold text-white/90">Tags</p>
+            <input
+              type="text"
+              placeholder="e.g. breakfast"
+              value={filters.tag || ""}
+              onChange={(e) =>
+                setFilters({
+                  ...filters,
+                  tag: e.target.value.toLowerCase(),
+                })
+              }
+              className="w-full rounded-2xl bg-white/4 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:bg-white/4"
+            />
+            <div className="mt-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/45">
+                Suggested
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {suggestedTags.map((tag) => {
+                  const isActive = filters.tag === tag;
+
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() =>
+                        setFilters({
+                          ...filters,
+                          tag: isActive ? "" : tag,
+                        })
+                      }
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                        isActive
+                          ? "bg-white text-[#111111]"
+                          : "bg-white/4 text-white/75 hover:bg-white/12 hover:text-white"
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

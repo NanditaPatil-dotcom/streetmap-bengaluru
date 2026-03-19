@@ -1,30 +1,19 @@
 import mongoose from "mongoose";
 
-type MongooseCache = {
-  conn: typeof mongoose | null;
-  promise: Promise<typeof mongoose> | null;
-};
+const MONGODB_URI = process.env.MONGODB_URI!;
 
-const globalForMongoose = globalThis as typeof globalThis & {
-  mongoose?: MongooseCache;
-};
+let cached = (global as any).mongoose;
 
-const cached = globalForMongoose.mongoose ?? { conn: null, promise: null };
-globalForMongoose.mongoose = cached;
+if (!cached) {
+  cached = (global as any).mongoose = { conn: null, promise: null };
+}
 
 async function connectDB() {
-  const mongoUri = process.env.MONGODB_URI;
-
-  if (!mongoUri) {
-    throw new Error("Please define MONGODB_URI in .env.local");
-  }
-
   if (cached.conn) return cached.conn;
 
   if (!cached.promise) {
-    cached.promise = mongoose.connect(mongoUri, {
+    cached.promise = mongoose.connect(MONGODB_URI, {
       dbName: "streetmap-bengaluru",
-      bufferCommands: false,
     });
   }
 

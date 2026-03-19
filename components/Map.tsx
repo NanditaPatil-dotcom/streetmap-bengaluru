@@ -1,8 +1,8 @@
 "use client";
 
 import L from "leaflet";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import { MapContainer, Marker, Popup, TileLayer, ZoomControl } from "react-leaflet";
 
 type Place = {
   _id?: string;
@@ -32,11 +32,14 @@ export default function Map({ places }: { places: Place[] }) {
   return (
     <MapContainer
       center={defaultPosition}
+      className="map-container"
       scrollWheelZoom
       style={{ height: "100vh", width: "100%" }}
       zoom={13}
-      zoomControl
+      zoomControl={false}
     >
+      <ZoomControl position="topright" />
+
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -51,7 +54,7 @@ export default function Map({ places }: { places: Place[] }) {
             place.location.coordinates[0],
           ]}
         >
-        <Popup>
+          <Popup>
             <div className="space-y-1">
               <h3 className="font-bold text-lg">{place.name}</h3>
 
@@ -61,7 +64,7 @@ export default function Map({ places }: { places: Place[] }) {
 
               {place.openTime && place.closeTime && (
                 <p className="text-sm">
-                   {place.openTime} - {place.closeTime}
+                  {place.openTime} - {place.closeTime}
                 </p>
               )}
 

@@ -99,12 +99,17 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%23ffffff' d='M1 3h6L4 7z'/%3E%3C/svg%3E");
 }
 
-.map-container .leaflet-top.leaflet-left {
-  inset-inline-start: auto;
-  inset-inline-end: 16px;
+.map-container .maplibregl-ctrl-top-right {
+  top: 72px;
+  right: 16px;
 }
 
-.map-container .leaflet-top.leaflet-left,
-.map-container .leaflet-top.leaflet-right {
-  top: 72px;
+.map-container .maplibregl-popup-content {
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.map-container .maplibregl-popup-close-button {
+  font-size: 18px;
+  padding: 4px 8px;
 }

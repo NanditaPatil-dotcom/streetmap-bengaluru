@@ -1,11 +1,11 @@
-import NextAuth from "next-auth";
+import NextAuth, { type NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 
-const providers = [
+const providers: NextAuthOptions["providers"] = [
   CredentialsProvider({
     name: "credentials",
     credentials: {

@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { signIn } from "next-auth/react";
+import { getProviders, signIn } from "next-auth/react";
 import { isValidPassword, PASSWORD_RULES_MESSAGE } from "@/lib/passwordValidation";
 
 type AuthMode = "signin" | "register";
@@ -23,6 +23,8 @@ export default function AuthModal({ isOpen, onClose }: Props) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [hasGoogleProvider, setHasGoogleProvider] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -30,7 +32,33 @@ export default function AuthModal({ isOpen, onClose }: Props) {
       setError("");
       setSuccess("");
       setMode("signin");
+      setIsGoogleLoading(false);
+      return;
     }
+
+    let isMounted = true;
+
+    const loadProviders = async () => {
+      try {
+        const providers = await getProviders();
+
+        if (isMounted) {
+          setHasGoogleProvider(Boolean(providers?.google));
+        }
+      } catch (providerError) {
+        console.error("Failed to load auth providers", providerError);
+
+        if (isMounted) {
+          setHasGoogleProvider(false);
+        }
+      }
+    };
+
+    loadProviders();
+
+    return () => {
+      isMounted = false;
+    };
   }, [isOpen]);
 
   if (!isOpen) {
@@ -87,6 +115,26 @@ export default function AuthModal({ isOpen, onClose }: Props) {
       setError("Something went wrong. Please try again.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setSuccess("");
+    setIsGoogleLoading(true);
+
+    try {
+      if (!hasGoogleProvider) {
+        setError("Google sign-in is not configured yet.");
+        return;
+      }
+
+      await signIn("google", { callbackUrl: "/" });
+    } catch (submitError) {
+      console.error("Google authentication failed", submitError);
+      setError("Google sign-in is unavailable right now.");
+    } finally {
+      setIsGoogleLoading(false);
     }
   };
 
@@ -197,7 +245,7 @@ export default function AuthModal({ isOpen, onClose }: Props) {
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isGoogleLoading}
             className="w-full rounded-2xl bg-[#111111] px-4 py-3 text-sm font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isSubmitting
@@ -207,6 +255,32 @@ export default function AuthModal({ isOpen, onClose }: Props) {
                 : "Register and sign in"}
           </button>
         </form>
+
+        <div className="mt-4">
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-black/10" />
+            <span className="text-xs font-medium uppercase tracking-[0.2em] text-[#686258]">
+              Or
+            </span>
+            <div className="h-px flex-1 bg-black/10" />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={isSubmitting || isGoogleLoading || !hasGoogleProvider}
+            className="mt-4 flex w-full items-center justify-center gap-3 rounded-2xl border border-[#222222] bg-[#222222] px-4 py-3 text-sm font-medium text-white transition hover:bg-[#111111] disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            <span className="text-base leading-none">G</span>
+            {isGoogleLoading ? "Connecting to Google..." : "Continue with Google"}
+          </button>
+
+          {!hasGoogleProvider ? (
+            <p className="mt-2 text-xs text-[#686258]">
+              Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to enable Google sign-in.
+            </p>
+          ) : null}
+        </div>
       </div>
     </div>
   );

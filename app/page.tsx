@@ -5,10 +5,17 @@ import Navbar from "@/components/Navbar";
 import Filters from "@/components/Filters";
 import FooterModes from "@/components/FooterModes";
 import AuthModal from "@/components/AuthModal";
+import SearchSidebar from "@/components/SearchSidebar";
 
 const Map = dynamic(() => import("@/components/Map"), {
   ssr: false,
 });
+
+const handleFlyTo = (lat: number, lng: number) => {
+  // In this setup, we don't have a mapRef exposed from Map component yet.
+  // Just log and continue; map move will still be handled by Map component itself in future.
+  console.debug("flyTo requested", { lat, lng });
+};
 
 function getCurrentMode() {
   const hour = new Date().getHours();
@@ -20,8 +27,23 @@ function getCurrentMode() {
 }
 
 
+type Place = {
+  _id?: string;
+  name: string;
+  category: string;
+  area?: string;
+  location: {
+    coordinates: [number, number];
+  };
+  openTime?: string;
+  closeTime?: string;
+  description?: string;
+  tags?: string[];
+};
+
 export default function Home() {
-  const [places, setPlaces] = useState([]);
+  const [places, setPlaces] = useState<Place[]>([]);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [mapType, setMapType] = useState("normal");
   const [modeEnabled, setModeEnabled] = useState(true);
   const [mode, setMode] = useState(getCurrentMode());
@@ -69,8 +91,12 @@ export default function Home() {
     fetch(url)
       .then((res) => res.json())
       .then((data) => {
-        console.log("Final Query:", url);
-        setPlaces(data);
+        console.log("Final Query:", url, data);
+        setPlaces(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch places", err);
+        setPlaces([]);
       });
   }, [mapType, modeEnabled, mode, filters]);
 
@@ -92,6 +118,10 @@ export default function Home() {
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
+      />
+      <SearchSidebar
+        onFlyTo={handleFlyTo}
+        onPlaceSelect={(place) => setSelectedPlace(place)}
       />
     </div>
   );

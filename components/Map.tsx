@@ -91,7 +91,8 @@ function MoonIcon() {
   );
 }
 
-export default function Map({ places }: { places: Place[] }) {
+export default function Map({ places }: { places?: Place[] }) {
+  const safePlaces = Array.isArray(places) ? places : [];
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [theme, setTheme] = useState<"dark" | "light">(darkMapStyle ? "dark" : "light");
   const closePopupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -103,10 +104,10 @@ export default function Map({ places }: { places: Place[] }) {
     }
 
     return (
-      places.find((place, index) => (place._id ?? `${place.name}-${index}`) === selectedPlaceId) ??
+      safePlaces.find((place, index) => (place._id ?? `${place.name}-${index}`) === selectedPlaceId) ??
       null
     );
-  }, [places, selectedPlaceId]);
+  }, [safePlaces, selectedPlaceId]);
   const currentMapStyle = theme === "dark" && darkMapStyle ? darkMapStyle : lightMapStyle;
 
   const clearClosePopupTimeout = () => {
@@ -242,7 +243,7 @@ export default function Map({ places }: { places: Place[] }) {
       >
         <NavigationControl position="top-right" showCompass={false} />
 
-        {places.map((place, index) => (
+        {safePlaces.map((place, index) => (
           <Marker
             key={place._id ?? `${place.name}-${index}`}
             anchor="bottom"

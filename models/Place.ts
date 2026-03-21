@@ -62,6 +62,7 @@ const PlaceSchema = new mongoose.Schema({
   }
 });
 
+PlaceSchema.index({ name: "text", description: "text", tags: "text", area: "text" });
 PlaceSchema.index({ location: "2dsphere" });
 
 export default mongoose.models.Place || mongoose.model("Place", PlaceSchema);

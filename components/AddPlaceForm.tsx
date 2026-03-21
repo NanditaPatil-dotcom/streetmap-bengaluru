@@ -309,12 +309,7 @@ export default function AddPlaceForm({
         {!standalone && (
           <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
             <div>
-              <h2
-                className="text-3xl font-bold tracking-tight"
-                style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
-              >
-                Add a place.
-              </h2>
+              <h2 className="text-3xl font-bold tracking-tight">Add a place.</h2>
               <p className="mt-1 text-sm text-white/40">
                 Found somewhere worth knowing about? Put it on the map.
               </p>
@@ -336,7 +331,6 @@ export default function AddPlaceForm({
               <>
                 <h1
                   className="mb-2 text-4xl font-bold tracking-tight"
-                  style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
                 >
                   Add a place.
                 </h1>

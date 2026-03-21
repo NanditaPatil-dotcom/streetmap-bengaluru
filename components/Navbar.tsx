@@ -1,6 +1,5 @@
 "use client";
 
-import { FiCompass } from "react-icons/fi";
 import { signOut, useSession } from "next-auth/react";
 
 type Props = {
@@ -21,19 +20,8 @@ export default function Navbar({ mapType, setMapType, onOpenAuth }: Props) {
 
   return (
     <div className="pointer-events-none absolute left-1/2 top-4 z-[1000] max-w-[calc(100%-1.5rem)] -translate-x-1/2 px-1 md:left-[62.5%] md:w-[calc(75%-2rem)] md:max-w-[40rem]">
-      <div className="pointer-events-auto grid grid-cols-1 gap-2 rounded-[2rem] bg-[#222222]/95 px-3 py-2 text-white shadow-[0_18px_40px_rgba(0,0,0,0.28)] ring-1 ring-black/10 backdrop-blur sm:grid-cols-[auto_1fr_auto] sm:items-center">
-        <div className="flex items-center justify-start">
-          <button
-            type="button"
-            onClick={() => setMapType("normal")}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f0e8] text-[#111111] shadow-inner transition hover:scale-[1.03]"
-            aria-label="Reset map filter"
-          >
-            <FiCompass className="text-base" />
-          </button>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-center gap-1.5">
+      <div className="pointer-events-auto flex flex-col gap-2 rounded-[2rem] bg-[#222222]/95 px-3 py-2 text-white shadow-[0_18px_40px_rgba(0,0,0,0.28)] ring-1 ring-black/10 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center justify-start gap-1.5 sm:flex-1">
           {types.map((type) => (
             <button
               key={type.value}
@@ -49,7 +37,7 @@ export default function Navbar({ mapType, setMapType, onOpenAuth }: Props) {
           ))}
         </div>
 
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-2 sm:shrink-0">
           {status === "authenticated" && session.user ? (
             <>
               <span className="hidden text-sm text-white/72 md:inline">

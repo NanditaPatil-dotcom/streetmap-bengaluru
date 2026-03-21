@@ -2,6 +2,28 @@ import connectDB from "@/lib/mongodb";
 import Place from "@/models/Place";
 import { NextResponse } from "next/server";
 
+type RecommendRequestBody = {
+  lat?: number;
+  lng?: number;
+  radiusKm?: number;
+  category?: string;
+  mood?: string;
+  mode?: string;
+  count?: number;
+};
+
+type MatchQuery = {
+  category?: string | { $nin: string[] };
+  tags?: { $in: string[] };
+};
+
+type RecommendedPlace = {
+  _id: { toString(): string } | string;
+  rating?: number;
+  distance?: number | null;
+  [key: string]: unknown;
+};
+
 // Fisher-Yates shuffle — true randomness for regenerate
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -15,7 +37,7 @@ function shuffle<T>(arr: T[]): T[] {
 export async function POST(req: Request) {
   await connectDB();
 
-  const body = await req.json();
+  const body = (await req.json()) as RecommendRequestBody;
   const {
     lat,
     lng,
@@ -44,10 +66,13 @@ export async function POST(req: Request) {
     night:   ["dinner", "late-night", "bar"],
   };
 
-  // ── Base match filters (category, tags) ───────────────────────────────────
-  const matchQuery: Record<string, any> = {};
+  const excludedCategories = ["metro", "bmtc"];
 
-  if (category && category !== "any") {
+  // ── Base match filters (category, tags) ───────────────────────────────────
+  const matchQuery: MatchQuery = {};
+  matchQuery.category = { $nin: excludedCategories };
+
+  if (category && category !== "any" && !excludedCategories.includes(category)) {
     matchQuery.category = category;
   }
 
@@ -57,7 +82,7 @@ export async function POST(req: Request) {
   if (tagFilters.length > 0) matchQuery.tags = { $in: tagFilters };
 
   // ── Use $geoNear if user location is provided, else plain find ─────────────
-  let places: any[] = [];
+  let places: RecommendedPlace[] = [];
 
   const hasLocation =
     typeof lat === "number" &&
@@ -68,7 +93,7 @@ export async function POST(req: Request) {
   if (hasLocation) {
     // $geoNear MUST be the first stage in aggregation
     // distanceField will add a "distance" key (in metres) to each doc
-    const pipeline: any[] = [
+    const pipeline = [
       {
         $geoNear: {
           near: { type: "Point", coordinates: [lng, lat] },
@@ -81,10 +106,10 @@ export async function POST(req: Request) {
       { $limit: 50 }, // cap the pool before shuffling
     ];
 
-    places = await Place.aggregate(pipeline);
+    places = (await Place.aggregate(pipeline)) as RecommendedPlace[];
   } else {
     // No geolocation — plain find with tag/category filters
-    places = await Place.find(matchQuery).limit(50).lean();
+    places = (await Place.find(matchQuery).limit(50).lean()) as RecommendedPlace[];
     // Add a dummy distance so the card renderer doesn't crash
     places = places.map((p) => ({ ...p, distance: null }));
   }
@@ -93,21 +118,22 @@ export async function POST(req: Request) {
   if (places.length === 0) {
     if (hasLocation) {
       // Try again with only radius, drop tag/category filters
-      const fallbackPipeline: any[] = [
+      const fallbackPipeline = [
         {
           $geoNear: {
             near: { type: "Point", coordinates: [lng, lat] },
             distanceField: "distance",
             maxDistance: radiusKm * 1000,
             spherical: true,
+            query: { category: { $nin: excludedCategories } },
           },
         },
         { $limit: 50 },
       ];
-      places = await Place.aggregate(fallbackPipeline);
+      places = (await Place.aggregate(fallbackPipeline)) as RecommendedPlace[];
     } else {
       // Absolute fallback: just return any places
-      places = await Place.find({}).limit(50).lean();
+      places = (await Place.find({ category: { $nin: excludedCategories } }).limit(50).lean()) as RecommendedPlace[];
       places = places.map((p) => ({ ...p, distance: null }));
     }
   }
@@ -118,7 +144,7 @@ export async function POST(req: Request) {
 
   // ── Shuffle and return `count` results ─────────────────────────────────────
   // Weighted by rating so higher-rated places appear more often
-  const weighted: any[] = [];
+  const weighted: RecommendedPlace[] = [];
   for (const p of places) {
     const weight = Math.max(1, Math.round((p.rating || 3) * 2));
     for (let i = 0; i < weight; i++) weighted.push(p);
@@ -128,9 +154,9 @@ export async function POST(req: Request) {
 
   // Deduplicate by _id after weighting
   const seen = new Set<string>();
-  const unique: any[] = [];
+  const unique: RecommendedPlace[] = [];
   for (const p of shuffled) {
-    const id = p._id.toString();
+    const id = typeof p._id === "string" ? p._id : p._id.toString();
     if (!seen.has(id)) {
       seen.add(id);
       unique.push(p);

@@ -1,11 +1,12 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Filters from "@/components/Filters";
 import FooterModes from "@/components/FooterModes";
 import AuthModal from "@/components/AuthModal";
 import { useRouter } from "next/navigation";
+import RecommendButton from "@/components/RecommendButton";
 
 // DO NOT call hooks outside component body.
 
@@ -45,6 +46,7 @@ type Place = {
 
 export default function Home() {
   const router = useRouter();
+  const mapRef = useRef<any>(null);
   const [places, setPlaces] = useState<Place[]>([]);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [mapType, setMapType] = useState("normal");
@@ -117,7 +119,7 @@ export default function Home() {
         mode={mode}
         setMode={setMode}
       />
-      <Map places={places} />
+      <Map places={places} mapRef={mapRef} />
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
@@ -136,6 +138,13 @@ export default function Home() {
         >
         +
       </button>
+
+       {/* ✦ Recommend button — bottom right, self-contained */}
+      <RecommendButton
+        onPlaceSelect={setSelectedPlace}
+        mapRef={mapRef}
+      />
+    
     </div>
   );
 }

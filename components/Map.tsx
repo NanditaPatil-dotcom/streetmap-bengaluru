@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import MapView, { Marker, NavigationControl, Popup } from "react-map-gl/maplibre";
 import type { StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -91,9 +91,17 @@ function MoonIcon() {
   );
 }
 
-export default function Map({ places }: { places?: Place[] }) {
+export default function Map({ places, mapRef }: { places?: Place[]; mapRef?: React.RefObject<any> }) {
   const safePlaces = Array.isArray(places) ? places : [];
+  const internalMapRef = useRef<any>(null);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (mapRef && internalMapRef.current) {
+      (mapRef as React.MutableRefObject<any>).current = internalMapRef.current;
+    }
+  }, [mapRef]);
+
   const [theme, setTheme] = useState<"dark" | "light">(darkMapStyle ? "dark" : "light");
   const closePopupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isNight = theme === "dark";
@@ -230,6 +238,7 @@ export default function Map({ places }: { places?: Place[] }) {
       )}
 
       <MapView
+        ref={internalMapRef}
         initialViewState={{
           longitude: defaultPosition.lng,
           latitude: defaultPosition.lat,

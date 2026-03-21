@@ -106,7 +106,7 @@ proprietary APIs, keeping the project fully open.
 - Next.js  
 - React  
 - Tailwind CSS  
-- React Leaflet  
+- MapLibre  
 
 ### Backend
 - Next.js API Routes  

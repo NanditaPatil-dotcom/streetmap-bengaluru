@@ -1,5 +1,6 @@
 import connectDB from "@/lib/mongodb";
 import Place from "@/models/Place";
+import type { PipelineStage } from "mongoose";
 import { NextResponse } from "next/server";
 
 type RecommendRequestBody = {
@@ -93,7 +94,7 @@ export async function POST(req: Request) {
   if (hasLocation) {
     // $geoNear MUST be the first stage in aggregation
     // distanceField will add a "distance" key (in metres) to each doc
-    const pipeline = [
+    const pipeline: PipelineStage[] = [
       {
         $geoNear: {
           near: { type: "Point", coordinates: [lng, lat] },
@@ -118,7 +119,7 @@ export async function POST(req: Request) {
   if (places.length === 0) {
     if (hasLocation) {
       // Try again with only radius, drop tag/category filters
-      const fallbackPipeline = [
+      const fallbackPipeline: PipelineStage[] = [
         {
           $geoNear: {
             near: { type: "Point", coordinates: [lng, lat] },

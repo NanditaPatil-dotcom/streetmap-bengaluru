@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import type { MapRef } from "react-map-gl/maplibre";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -25,7 +25,7 @@ type Filters = {
 
 type Props = {
   onPlaceSelect: (place: Place) => void;
-  mapRef: React.MutableRefObject<any>;
+  mapRef: React.MutableRefObject<MapRef | null>;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -208,7 +208,7 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
   const handlePickPlace = (place: Place) => {
     const [lng, lat] = place.location.coordinates;
     if (mapRef.current) {
-      mapRef.current.flyTo([lat, lng], 17, { duration: 1.6 });
+      mapRef.current.flyTo({ center: [lng, lat], zoom: 17, duration: 1600 });
     }
     onPlaceSelect(place);
     setOpen(false);
@@ -221,7 +221,7 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
   return (
     <>
       {/* ── Floating button + bubble ─────────────────────────────────────── */}
-      <div className="fixed bottom-6 right-6 z-[1000] flex flex-col items-end gap-2">
+      <div className="fixed bottom-12 right-6 z-[1000] flex flex-col items-end gap-2">
 
         {/* Speech bubble */}
         <div

@@ -83,28 +83,38 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: Request) {
-  await connectDB();
+  try {
+    await connectDB();
 
-  const body = await req.json();
+    const body = await req.json();
 
-  // Prevent duplicates — if a place with the same OSM id already exists, return it
-  if (body.osmId) {
-    const existing = await Place.findOne({ osmId: body.osmId });
-    if (existing) return NextResponse.json(existing);
+    // Prevent duplicates — if a place with the same OSM id already exists, return it
+    if (body.osmId) {
+      const existing = await Place.findOne({ osmId: body.osmId });
+      if (existing) return NextResponse.json(existing);
+    }
+
+    const place = await Place.create({
+      name: body.name,
+      category: body.category || "place",
+      area: body.area || "",
+      rating: typeof body.rating === "number" ? body.rating : 0,
+      location: {
+        type: "Point",
+        coordinates: [body.lng, body.lat], // [lng, lat] — GeoJSON order
+      },
+      description: body.description || "",
+      tags: body.tags || [],
+      osmId: body.osmId || null,
+    });
+
+    return NextResponse.json(place, { status: 201 });
+  } catch (error) {
+    console.error("Failed to save place", error);
+
+    const message =
+      error instanceof Error ? error.message : "Failed to save place.";
+
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const place = await Place.create({
-    name: body.name,
-    category: body.category || "place",
-    area: body.area || "",
-    location: {
-      type: "Point",
-      coordinates: [body.lng, body.lat], // [lng, lat] — GeoJSON order
-    },
-    description: body.description || "",
-    tags: body.tags || [],
-    osmId: body.osmId || null,
-  });
-
-  return NextResponse.json(place, { status: 201 });
 }

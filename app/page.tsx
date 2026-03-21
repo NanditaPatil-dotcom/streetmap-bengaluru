@@ -1,24 +1,17 @@
 "use client";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
+import type { MapRef } from "react-map-gl/maplibre";
+import AddPlaceForm, { type AddedPlace } from "@/components/AddPlaceForm";
 import Navbar from "@/components/Navbar";
 import Filters from "@/components/Filters";
 import FooterModes from "@/components/FooterModes";
 import AuthModal from "@/components/AuthModal";
-import { useRouter } from "next/navigation";
 import RecommendButton from "@/components/RecommendButton";
-
-// DO NOT call hooks outside component body.
 
 const Map = dynamic(() => import("@/components/Map"), {
   ssr: false,
 });
-
-const handleFlyTo = (lat: number, lng: number) => {
-  // In this setup, we don't have a mapRef exposed from Map component yet.
-  // Just log and continue; map move will still be handled by Map component itself in future.
-  console.debug("flyTo requested", { lat, lng });
-};
 
 function getCurrentMode() {
   const hour = new Date().getHours();
@@ -31,13 +24,14 @@ function getCurrentMode() {
 
 
 type Place = {
-  _id?: string;
+  _id: string;
   name: string;
   category: string;
   area?: string;
   location: {
     coordinates: [number, number];
   };
+  rating?: number;
   openTime?: string;
   closeTime?: string;
   description?: string;
@@ -45,14 +39,14 @@ type Place = {
 };
 
 export default function Home() {
-  const router = useRouter();
-  const mapRef = useRef<any>(null);
+  const mapRef = useRef<MapRef | null>(null);
   const [places, setPlaces] = useState<Place[]>([]);
-  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [mapType, setMapType] = useState("normal");
   const [modeEnabled, setModeEnabled] = useState(true);
   const [mode, setMode] = useState(getCurrentMode());
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isAddSidebarOpen, setIsAddSidebarOpen] = useState(false);
+  const [activePlaceId, setActivePlaceId] = useState<string | null>(null);
 
   const [filters, setFilters] = useState({
     areas: [] as string[],
@@ -105,8 +99,29 @@ export default function Home() {
       });
   }, [mapType, modeEnabled, mode, filters]);
 
+  const handlePlaceAdded = (place: AddedPlace) => {
+    setPlaces((currentPlaces) => {
+      const nextPlaces = currentPlaces.filter((currentPlace) => currentPlace._id !== place._id);
+      return [place, ...nextPlaces];
+    });
+    setActivePlaceId(place._id);
+    setIsAddSidebarOpen(false);
+  };
+
   return (
     <div className="h-screen w-full">
+      <div className="pointer-events-none absolute left-1/2 top-4 z-[1000] w-[calc(100%-1.5rem)] max-w-[calc(100%-1.5rem)] -translate-x-1/2 px-1 md:left-[62.5%] md:w-[calc(75%-2rem)] md:max-w-[40rem]">
+        <div className="relative">
+          <button
+            onClick={() => setIsAddSidebarOpen(true)}
+            className="pointer-events-auto absolute right-2 top-[4.75rem] flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-[#111]/95 text-2xl font-light text-white shadow-xl backdrop-blur-md transition-all duration-200 hover:bg-white hover:text-black sm:right-0 sm:top-7 sm:-translate-y-1/2 sm:translate-x-[calc(100%+0.5rem)]"
+            aria-label="Open add place sidebar"
+            aria-controls="add-place-sidebar"
+          >
+            +
+          </button>
+        </div>
+      </div>
       <Navbar
         mapType={mapType}
         setMapType={setMapType}
@@ -119,29 +134,40 @@ export default function Home() {
         mode={mode}
         setMode={setMode}
       />
-      <Map places={places} mapRef={mapRef} />
+      <Map
+        places={places}
+        mapRef={mapRef}
+        activePlaceId={activePlaceId}
+        onActivePlaceClose={() => setActivePlaceId(null)}
+      />
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
       />
-      <button
-        onClick={() => router.push("/add")}
-        className="
-        fixed bottom-6 left-6 z-[1000]
-        w-12 h-12 rounded-full
-        bg-[#111]/95 backdrop-blur-md border border-white/15
-        text-white text-2xl font-light
-        flex items-center justify-center
-        hover:bg-white hover:text-black
-        transition-all duration-200 shadow-xl select-none
-        "
-        >
-        +
-      </button>
+      <div
+        className={`fixed inset-0 z-[1090] bg-black/30 transition-opacity duration-300 ${
+          isAddSidebarOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        onClick={() => setIsAddSidebarOpen(false)}
+        aria-hidden={!isAddSidebarOpen}
+      />
+      <aside
+        id="add-place-sidebar"
+        className={`fixed right-0 top-0 z-[1100] h-screen w-full max-w-md border-l border-white/10 bg-[#0c0c0c]/98 shadow-[-24px_0_60px_rgba(0,0,0,0.38)] backdrop-blur-xl transition-transform duration-300 ease-out ${
+          isAddSidebarOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+        aria-hidden={!isAddSidebarOpen}
+      >
+        <AddPlaceForm
+          onClose={() => setIsAddSidebarOpen(false)}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
+          onSubmitted={handlePlaceAdded}
+        />
+      </aside>
 
        {/* ✦ Recommend button — bottom right, self-contained */}
       <RecommendButton
-        onPlaceSelect={setSelectedPlace}
+        onPlaceSelect={() => {}}
         mapRef={mapRef}
       />
     

@@ -8,7 +8,7 @@ const PlaceSchema = new mongoose.Schema({
 
   category: {
     type: String,
-    enum: ["cafe", "park", "metro", "bmtc", "restaurant"],
+    enum: ["cafe", "park", "metro", "bmtc", "restaurant", "place"],
     required: true
   },
 
@@ -65,5 +65,9 @@ const PlaceSchema = new mongoose.Schema({
 
 PlaceSchema.index({ name: "text", description: "text", tags: "text", area: "text" });
 PlaceSchema.index({ location: "2dsphere" });
+
+if (process.env.NODE_ENV !== "production" && mongoose.models.Place) {
+  mongoose.deleteModel("Place");
+}
 
 export default mongoose.models.Place || mongoose.model("Place", PlaceSchema);

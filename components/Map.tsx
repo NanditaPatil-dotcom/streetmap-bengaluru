@@ -1,6 +1,7 @@
 "use client";
 
 import PlacePopup from "@/components/PlacePopup";
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import MapView, { Marker, NavigationControl, Popup } from "react-map-gl/maplibre";
 import type { MapRef } from "react-map-gl/maplibre";
@@ -171,7 +172,7 @@ export default function Map({
               onFocus={() => onPlaceSelect?.(place)}
               type="button"
             >
-              <img
+              <Image
                 src={getIcon(place.category)}
                 alt={place.category}
                 width={30}

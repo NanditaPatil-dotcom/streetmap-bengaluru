@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 type PlaceMedia =
@@ -548,7 +549,7 @@ export default function PlacePopup({
                   <div className="grid grid-cols-2 gap-3">
                     {menuItems.map((item) => (
                       <figure key={item.id} className="overflow-hidden rounded-2xl bg-[#ead7bc]">
-                        <img src={item.src} alt={item.alt || `${place.name} menu`} className="h-32 w-full object-cover" />
+                        <Image src={item.src} alt={item.alt || `${place.name} menu`} width={300} height={128} className="h-32 w-full object-cover" />
                         {item.label ? <figcaption className="px-3 py-2 text-xs font-medium text-[#5c4631]">{item.label}</figcaption> : null}
                       </figure>
                     ))}
@@ -586,10 +587,11 @@ export default function PlacePopup({
                             index === 0 ? "h-72 w-[18.5rem]" : "h-72 w-[11.5rem]"
                           }`}
                         >
-                          <img
+                          <Image
                             src={item.src}
                             alt={item.alt || `${place.name} photo`}
-                            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                            fill
+                            className="object-cover transition duration-300 group-hover:scale-[1.02]"
                           />
                           {item.label ? (
                             <span className="absolute inset-x-3 bottom-3 rounded-full bg-black/45 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
@@ -607,10 +609,11 @@ export default function PlacePopup({
                         >
                           {visiblePhotoItems[1] ? (
                             <>
-                              <img
+                              <Image
                                 src={visiblePhotoItems[1].src}
                                 alt={visiblePhotoItems[1].alt || `${place.name} photo gallery`}
-                                className="absolute inset-0 h-full w-full object-cover opacity-75"
+                                fill
+                                className="object-cover opacity-75"
                               />
                               <div className="absolute inset-0 bg-black/35" />
                             </>
@@ -792,7 +795,7 @@ export default function PlacePopup({
           <div className="grid flex-1 grid-cols-2 content-start gap-3 overflow-y-auto px-5 py-5 sm:grid-cols-3">
             {photoItems.map((item) => (
               <figure key={`gallery-${item.id}`} className="aspect-square overflow-hidden rounded-2xl bg-white/10">
-                <img src={item.src} alt={item.alt || `${place.name} photo`} className="h-full w-full object-cover" />
+                <Image src={item.src} alt={item.alt || `${place.name} photo`} fill className="object-cover" />
               </figure>
             ))}
           </div>

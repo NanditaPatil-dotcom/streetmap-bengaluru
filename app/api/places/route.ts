@@ -1,6 +1,6 @@
 import connectDB from "@/lib/mongodb";
 import Place from "@/models/Place";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth";
 import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 

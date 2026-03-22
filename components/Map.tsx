@@ -46,17 +46,17 @@ export default function Map({
   places,
   mapRef,
   activePlaceId,
-  onActivePlaceClose,
+  onPlaceSelect,
 }: {
   places?: Place[];
   mapRef?: React.MutableRefObject<MapRef | null>;
   activePlaceId?: string | null;
-  onActivePlaceClose?: () => void;
+  onPlaceSelect?: (place: Place | null) => void;
 }) {
   const safePlaces = useMemo(() => (Array.isArray(places) ? places : []), [places]);
   const internalMapRef = useRef<MapRef | null>(null);
-  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const closePopupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [hoveredPlaceId, setHoveredPlaceId] = useState<string | null>(null);
 
   useEffect(() => {
     if (mapRef && internalMapRef.current) {
@@ -71,32 +71,34 @@ export default function Map({
     }
   }
 
-  const visiblePlaceId = activePlaceId ?? selectedPlaceId;
-
-  const selectedPlace = useMemo(() => {
-    if (!visiblePlaceId) {
+  const hoveredPlace = useMemo(() => {
+    if (!hoveredPlaceId) {
       return null;
     }
 
     return (
-      safePlaces.find((place, index) => (place._id ?? `${place.name}-${index}`) === visiblePlaceId) ??
-      null
+      safePlaces.find((place, index) => (place._id ?? `${place.name}-${index}`) === hoveredPlaceId) ?? null
     );
-  }, [safePlaces, visiblePlaceId]);
+  }, [hoveredPlaceId, safePlaces]);
 
   useEffect(() => {
-    if (!activePlaceId || !internalMapRef.current) {
+    if (!internalMapRef.current) {
       return;
     }
 
-    const activePlace = safePlaces.find(
-      (place, index) => (place._id ?? `${place.name}-${index}`) === activePlaceId
-    );
+    if (!activePlaceId) {
+      return;
+    }
+
+    const activePlace =
+      safePlaces.find((place, index) => (place._id ?? `${place.name}-${index}`) === activePlaceId) ??
+      null;
 
     if (!activePlace) {
       return;
     }
 
+    onPlaceSelect?.(activePlace);
     internalMapRef.current.flyTo({
       center: activePlace.location.coordinates,
       zoom: 17,
@@ -104,20 +106,7 @@ export default function Map({
       offset: [-180, 40],
       essential: true,
     });
-  }, [activePlaceId, safePlaces]);
-
-  const openPopup = (placeId: string) => {
-    clearClosePopupTimeout();
-    setSelectedPlaceId(placeId);
-  };
-
-  const closePopupWithDelay = () => {
-    clearClosePopupTimeout();
-    closePopupTimeoutRef.current = setTimeout(() => {
-      setSelectedPlaceId(null);
-      closePopupTimeoutRef.current = null;
-    }, 120);
-  };
+  }, [activePlaceId, onPlaceSelect, safePlaces]);
 
   return (
     <div className="map-container relative" style={{ height: "100vh", width: "100%" }}>
@@ -146,11 +135,19 @@ export default function Map({
             <button
               aria-label={`Preview details for ${place.name}`}
               className="text-[28px] leading-none"
-              onClick={() => openPopup(place._id ?? `${place.name}-${index}`)}
-              onMouseEnter={() => openPopup(place._id ?? `${place.name}-${index}`)}
-              onMouseLeave={closePopupWithDelay}
-              onFocus={() => openPopup(place._id ?? `${place.name}-${index}`)}
-              onBlur={closePopupWithDelay}
+              onClick={() => onPlaceSelect?.(place)}
+              onMouseEnter={() => {
+                clearClosePopupTimeout();
+                setHoveredPlaceId(place._id ?? `${place.name}-${index}`);
+              }}
+              onMouseLeave={() => {
+                clearClosePopupTimeout();
+                closePopupTimeoutRef.current = setTimeout(() => {
+                  setHoveredPlaceId(null);
+                  closePopupTimeoutRef.current = null;
+                }, 120);
+              }}
+              onFocus={() => onPlaceSelect?.(place)}
               type="button"
             >
               📍
@@ -158,26 +155,29 @@ export default function Map({
           </Marker>
         ))}
 
-        {selectedPlace && (
+        {hoveredPlace ? (
           <Popup
             anchor="top"
             closeButton
             closeOnClick={false}
-            latitude={selectedPlace.location.coordinates[1]}
-            longitude={selectedPlace.location.coordinates[0]}
+            latitude={hoveredPlace.location.coordinates[1]}
+            longitude={hoveredPlace.location.coordinates[0]}
             offset={20}
-            onClose={() => {
-              setSelectedPlaceId(null);
-              onActivePlaceClose?.();
-            }}
+            onClose={() => setHoveredPlaceId(null)}
           >
             <PlacePopup
-              place={selectedPlace}
+              place={hoveredPlace}
               onMouseEnter={clearClosePopupTimeout}
-              onMouseLeave={closePopupWithDelay}
+              onMouseLeave={() => {
+                clearClosePopupTimeout();
+                closePopupTimeoutRef.current = setTimeout(() => {
+                  setHoveredPlaceId(null);
+                  closePopupTimeoutRef.current = null;
+                }, 120);
+              }}
             />
           </Popup>
-        )}
+        ) : null}
       </MapView>
     </div>
   );

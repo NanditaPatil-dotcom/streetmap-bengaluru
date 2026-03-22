@@ -13,13 +13,15 @@ export default function Navbar({ mapType, setMapType, onOpenAuth }: Props) {
   const types = [
     { value: "normal", label: "Explore" },
     { value: "cafe", label: "Cafe" },
+    { value: "food", label: "Food" },
+    { value: "malls", label: "Malls" },
     { value: "metro", label: "Metro" },
     { value: "park", label: "Park" },
     { value: "bmtc", label: "BMTC" },
   ];
 
   return (
-    <div className="pointer-events-none absolute left-1/2 top-4 z-[1000] max-w-[calc(100%-1.5rem)] -translate-x-1/2 px-1 md:left-[62.5%] md:w-[calc(75%-2rem)] md:max-w-[40rem]">
+    <div className="pointer-events-none absolute left-1/2 top-4 z-[1000] w-[calc(100%-1rem)] max-w-[calc(100%-1rem)] -translate-x-1/2 px-1 md:left-[62.5%] md:w-[calc(78%-1.5rem)] md:max-w-[52rem]">
       <div className="pointer-events-auto flex flex-col gap-2 rounded-[2rem] bg-[#222222]/95 px-3 py-2 text-white shadow-[0_18px_40px_rgba(0,0,0,0.28)] ring-1 ring-black/10 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center justify-start gap-1.5 sm:flex-1">
           {types.map((type) => (

@@ -76,6 +76,8 @@ const RADIUS_OPTIONS = [
 
 const CATEGORY_ICONS: Record<string, string> = {
   cafe:  "☕",
+  food:  "🍽️",
+  malls: "🛍️",
   park:  "🌳",
   metro: "🚇",
   bmtc:  "🚌",

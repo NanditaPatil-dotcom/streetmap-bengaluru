@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { MapRef } from "react-map-gl/maplibre";
 import AddPlaceForm, { type AddedPlace } from "@/components/AddPlaceForm";
 import Navbar from "@/components/Navbar";
@@ -8,6 +8,7 @@ import Filters from "@/components/Filters";
 import FooterModes from "@/components/FooterModes";
 import AuthModal from "@/components/AuthModal";
 import RecommendButton from "@/components/RecommendButton";
+import PlacePopup from "@/components/PlacePopup";
 
 const Map = dynamic(() => import("@/components/Map"), {
   ssr: false,
@@ -35,7 +36,13 @@ type Place = {
   openTime?: string;
   closeTime?: string;
   description?: string;
+  overview?: string;
   tags?: string[];
+  images?: Array<string | { url?: string; src?: string; alt?: string; label?: string; title?: string }>;
+  photos?: Array<string | { url?: string; src?: string; alt?: string; label?: string; title?: string }>;
+  menu?: Array<string | { url?: string; src?: string; alt?: string; label?: string; title?: string }>;
+  menuImages?: Array<string | { url?: string; src?: string; alt?: string; label?: string; title?: string }>;
+  reviewCount?: number;
 };
 
 export default function Home() {
@@ -47,6 +54,7 @@ export default function Home() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isAddSidebarOpen, setIsAddSidebarOpen] = useState(false);
   const [activePlaceId, setActivePlaceId] = useState<string | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
 
   const [filters, setFilters] = useState({
     areas: [] as string[],
@@ -99,13 +107,30 @@ export default function Home() {
       });
   }, [mapType, modeEnabled, mode, filters]);
 
+  const visibleSelectedPlace = useMemo(() => {
+    if (!selectedPlace?._id) {
+      return selectedPlace;
+    }
+
+    return places.find((place) => place._id === selectedPlace._id) ?? selectedPlace;
+  }, [places, selectedPlace]);
+
   const handlePlaceAdded = (place: AddedPlace) => {
     setPlaces((currentPlaces) => {
       const nextPlaces = currentPlaces.filter((currentPlace) => currentPlace._id !== place._id);
       return [place, ...nextPlaces];
     });
     setActivePlaceId(place._id);
+    setSelectedPlace(place);
     setIsAddSidebarOpen(false);
+  };
+
+  const handlePlaceSelect = (place: Place | null) => {
+    setSelectedPlace(place);
+    setActivePlaceId(place?._id ?? null);
+    if (place) {
+      setIsAddSidebarOpen(false);
+    }
   };
 
   return (
@@ -113,7 +138,11 @@ export default function Home() {
       <div className="pointer-events-none absolute left-1/2 top-4 z-[1000] w-[calc(100%-1.5rem)] max-w-[calc(100%-1.5rem)] -translate-x-1/2 px-1 md:left-[62.5%] md:w-[calc(75%-2rem)] md:max-w-[40rem]">
         <div className="relative">
           <button
-            onClick={() => setIsAddSidebarOpen(true)}
+            onClick={() => {
+              setSelectedPlace(null);
+              setActivePlaceId(null);
+              setIsAddSidebarOpen(true);
+            }}
             className="pointer-events-auto absolute right-2 top-[4.75rem] flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-[#111]/95 text-2xl font-light text-white shadow-xl backdrop-blur-md transition-all duration-200 hover:bg-white hover:text-black sm:right-0 sm:top-7 sm:-translate-y-1/2 sm:translate-x-[calc(100%+0.5rem)]"
             aria-label="Open add place sidebar"
             aria-controls="add-place-sidebar"
@@ -138,7 +167,7 @@ export default function Home() {
         places={places}
         mapRef={mapRef}
         activePlaceId={activePlaceId}
-        onActivePlaceClose={() => setActivePlaceId(null)}
+        onPlaceSelect={handlePlaceSelect}
       />
       <AuthModal
         isOpen={isAuthModalOpen}
@@ -163,6 +192,29 @@ export default function Home() {
           onOpenAuth={() => setIsAuthModalOpen(true)}
           onSubmitted={handlePlaceAdded}
         />
+      </aside>
+
+      <div
+        className={`fixed inset-0 z-[1110] bg-black/20 transition-opacity duration-300 ${
+          visibleSelectedPlace ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        onClick={() => handlePlaceSelect(null)}
+        aria-hidden={!visibleSelectedPlace}
+      />
+      <aside
+        id="place-details-sidebar"
+        className={`fixed right-0 top-0 z-[1120] h-screen w-full max-w-md border-l border-[#d5c7b6] shadow-[-24px_0_60px_rgba(27,20,14,0.2)] transition-transform duration-300 ease-out ${
+          visibleSelectedPlace ? "translate-x-0" : "translate-x-full"
+        }`}
+        aria-hidden={!visibleSelectedPlace}
+      >
+        {visibleSelectedPlace ? (
+          <PlacePopup
+            place={visibleSelectedPlace}
+            variant="sidebar"
+            onClose={() => handlePlaceSelect(null)}
+          />
+        ) : null}
       </aside>
 
        {/* ✦ Recommend button — bottom right, self-contained */}

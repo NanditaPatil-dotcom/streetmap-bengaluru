@@ -28,6 +28,8 @@ type Place = {
   _id?: string;
   name: string;
   category: string;
+  addedBy?: string;
+  createdAt?: string;
   area?: string;
   location: {
     coordinates: [number, number];
@@ -42,8 +44,8 @@ type Place = {
   photos?: Array<string | { url?: string; src?: string; alt?: string; label?: string; title?: string }>;
   menu?: Array<string | { url?: string; src?: string; alt?: string; label?: string; title?: string }>;
   menuImages?: Array<string | { url?: string; src?: string; alt?: string; label?: string; title?: string }>;
-  creatorReview?: { text: string; rating: number; createdAt?: string } | null;
-  reviews?: Array<{ text: string; rating: number; createdAt?: string }>;
+  creatorReview?: { text: string; author?: string; rating: number; createdAt?: string } | null;
+  reviews?: Array<{ text: string; author?: string; rating: number; createdAt?: string }>;
   reviewCount?: number;
 };
 

@@ -56,6 +56,8 @@ export type AddedPlace = {
   _id: string;
   name: string;
   category: string;
+  addedBy?: string;
+  createdAt?: string;
   area?: string;
   rating?: number;
   description?: string;
@@ -63,8 +65,8 @@ export type AddedPlace = {
   openTime?: string;
   closeTime?: string;
   tags?: string[];
-  creatorReview?: { text: string; rating: number; createdAt?: string } | null;
-  reviews?: Array<{ text: string; rating: number; createdAt?: string }>;
+  creatorReview?: { text: string; author?: string; rating: number; createdAt?: string } | null;
+  reviews?: Array<{ text: string; author?: string; rating: number; createdAt?: string }>;
 };
 
 const PLACE_CATEGORIES = ["cafe", "food", "malls", "metro", "bmtc", "park"] as const;
@@ -85,6 +87,8 @@ const DEFAULT_CATEGORY_TIMES: Partial<Record<PlaceCategory, TimeOption[]>> = {
   food: ["noon", "night"],
 };
 
+const ROAD_LIKE_TERMS = ["road", "street", "main road", "cross", "layout", "stage", "phase"];
+
 const inferTagsFromCategory = (category: PlaceCategory) =>
   (DEFAULT_CATEGORY_TIMES[category] ?? []).map((time) => TIME_TAGS[time]);
 
@@ -98,26 +102,62 @@ const categoryFromOSMType = (type: string): string => {
   return "food";
 };
 
-const shortName = (result: OSMResult) =>
-  result.name ||
-  result.namedetails?.name ||
-  result.namedetails?.["name:en"] ||
-  result.namedetails?.brand ||
-  result.extratags?.brand ||
-  result.extratags?.name ||
-  result.address?.amenity ||
-  result.address?.shop ||
-  result.address?.tourism ||
-  result.address?.building ||
-  result.address?.road ||
-  result.address?.neighbourhood ||
-  result.display_name.split(",")[0];
+const isRoadLike = (value?: string) => {
+  const normalizedValue = value?.trim().toLowerCase();
+
+  if (!normalizedValue) {
+    return false;
+  }
+
+  return ROAD_LIKE_TERMS.some((term) => normalizedValue.includes(term));
+};
+
+const shortName = (result: OSMResult, fallbackQuery?: string) => {
+  const strongCandidate =
+    result.name ||
+    result.namedetails?.name ||
+    result.namedetails?.["name:en"] ||
+    result.namedetails?.brand ||
+    result.extratags?.brand ||
+    result.extratags?.name ||
+    result.address?.amenity ||
+    result.address?.shop ||
+    result.address?.tourism;
+
+  if (strongCandidate && !isRoadLike(strongCandidate)) {
+    return strongCandidate;
+  }
+
+  const fallbackCandidate = result.address?.building || result.address?.neighbourhood || result.display_name.split(",")[0];
+
+  if (fallbackCandidate && !isRoadLike(fallbackCandidate)) {
+    return fallbackCandidate;
+  }
+
+  const cleanedQuery = fallbackQuery?.trim();
+
+  if (cleanedQuery) {
+    return cleanedQuery;
+  }
+
+  return strongCandidate || fallbackCandidate || result.address?.road || result.display_name.split(",")[0];
+};
 
 const shortArea = (result: OSMResult) =>
   [result.address?.neighbourhood, result.address?.suburb]
     .filter(Boolean)
     .slice(0, 1)
     .join("") || "";
+
+const displayUserName = (value?: string | null) => {
+  const trimmedValue = value?.trim();
+
+  if (!trimmedValue) {
+    return "Explorer";
+  }
+
+  return trimmedValue.split(" ")[0] || "Explorer";
+};
 
 export default function AddPlaceForm({
   onClose,
@@ -226,7 +266,7 @@ export default function AddPlaceForm({
       setQuery(item.item.name);
     } else {
       setSelected({ source: "osm", data: item.item });
-      setQuery(shortName(item.item));
+      setQuery(shortName(item.item, query));
       setCategory(categoryFromOSMType(item.item.type) as PlaceCategory);
       setBestTimes([]);
     }
@@ -276,10 +316,11 @@ export default function AddPlaceForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: shortName(osmPlace),
+          name: shortName(osmPlace, query),
           lat: parseFloat(osmPlace.lat),
           lng: parseFloat(osmPlace.lon),
           category,
+          addedBy: displayUserName(session.user?.name),
           area: shortArea(osmPlace),
           rating,
           description: review.trim(),
@@ -297,11 +338,12 @@ export default function AddPlaceForm({
       resetForm();
       onSubmitted?.({
         ...created,
+        addedBy: displayUserName(session.user?.name) || created.addedBy,
         rating,
         description: review.trim(),
         tags,
-        creatorReview: { text: review.trim(), rating },
-        reviews: [{ text: review.trim(), rating }],
+        creatorReview: { text: review.trim(), author: displayUserName(session.user?.name), rating },
+        reviews: [{ text: review.trim(), author: displayUserName(session.user?.name), rating }],
       });
 
       if (standalone) {

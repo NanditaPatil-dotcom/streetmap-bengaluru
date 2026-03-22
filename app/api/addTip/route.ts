@@ -1,14 +1,16 @@
 import connectDB from "@/lib/mongodb";
 import Place from "@/models/Place";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 const normalizeReviews = (
-  creatorReview: { text?: string; rating?: number; createdAt?: Date } | null | undefined,
-  reviews: Array<{ text?: string; rating?: number; createdAt?: Date }> | null | undefined
+  creatorReview: { text?: string; author?: string; rating?: number; createdAt?: Date } | null | undefined,
+  reviews: Array<{ text?: string; author?: string; rating?: number; createdAt?: Date }> | null | undefined
 ) => {
   const normalizedReviews = Array.isArray(reviews)
     ? reviews.filter(
-        (review): review is { text: string; rating: number; createdAt?: Date } =>
+        (review): review is { text: string; author?: string; rating: number; createdAt?: Date } =>
           Boolean(review) &&
           typeof review.text === "string" &&
           typeof review.rating === "number" &&
@@ -36,10 +38,12 @@ export async function POST(req: Request) {
   try {
     await connectDB();
 
+    const session = await getServerSession(authOptions);
     const body = await req.json();
     const placeId = typeof body.placeId === "string" ? body.placeId.trim() : "";
     const tip = typeof body.tip === "string" ? body.tip.trim() : "";
     const rating = typeof body.rating === "number" ? body.rating : Number(body.rating);
+    const reviewAuthor = session?.user?.name?.trim()?.split(" ")[0] || "Explorer";
 
     if (!placeId) {
       return NextResponse.json({ error: "placeId is required." }, { status: 400 });
@@ -68,6 +72,7 @@ export async function POST(req: Request) {
     ) {
       updatedPlace.creatorReview = {
         text: updatedPlace.description.trim(),
+        author: updatedPlace.addedBy || "Explorer",
         rating: updatedPlace.rating,
         createdAt: updatedPlace.createdAt ?? new Date(),
       };
@@ -77,6 +82,7 @@ export async function POST(req: Request) {
 
     updatedPlace.reviews.push({
       text: tip,
+      author: reviewAuthor,
       rating,
       createdAt: new Date(),
     });

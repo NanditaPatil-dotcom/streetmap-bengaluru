@@ -1,5 +1,7 @@
 import connectDB from "@/lib/mongodb";
 import Place from "@/models/Place";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 
 const DEFAULT_CATEGORY_TAGS: Record<string, string[]> = {
@@ -93,7 +95,10 @@ export async function POST(req: Request) {
   try {
     await connectDB();
 
+    const session = await getServerSession(authOptions);
     const body = await req.json();
+    const sessionName = session?.user?.name?.trim() ?? "";
+    const addedBy = sessionName ? sessionName.split(" ")[0] : "";
     const initialRating = typeof body.rating === "number" ? body.rating : 0;
     const inferredTags =
       Array.isArray(body.tags) && body.tags.length > 0
@@ -104,6 +109,7 @@ export async function POST(req: Request) {
         ? [
             {
               text: body.description.trim(),
+              author: addedBy || "Explorer",
               rating: initialRating,
             },
           ]
@@ -113,12 +119,25 @@ export async function POST(req: Request) {
     // Prevent duplicates — if a place with the same OSM id already exists, return it
     if (body.osmId) {
       const existing = await Place.findOne({ osmId: body.osmId });
-      if (existing) return NextResponse.json(existing);
+      if (existing) {
+        const hasFallbackAddedBy =
+          typeof existing.addedBy !== "string" ||
+          !existing.addedBy.trim() ||
+          existing.addedBy.trim().toLowerCase() === "user";
+
+        if (addedBy && hasFallbackAddedBy) {
+          existing.addedBy = addedBy;
+          await existing.save();
+        }
+
+        return NextResponse.json(existing);
+      }
     }
 
     const place = await Place.create({
       name: body.name,
       category: body.category || "place",
+      addedBy: addedBy || (typeof body.addedBy === "string" && body.addedBy.trim() ? body.addedBy.trim() : "user"),
       area: body.area || "",
       rating: initialRating,
       location: {

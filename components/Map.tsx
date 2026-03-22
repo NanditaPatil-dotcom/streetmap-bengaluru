@@ -11,6 +11,8 @@ type Place = {
   _id?: string;
   name: string;
   category: string;
+  addedBy?: string;
+  createdAt?: string;
   area?: string;
   location: {
     coordinates: [number, number]; // [lng, lat]
@@ -20,8 +22,8 @@ type Place = {
   closeTime?: string;
   description?: string;
   tags?: string[];
-  creatorReview?: { text: string; rating: number; createdAt?: string } | null;
-  reviews?: Array<{ text: string; rating: number; createdAt?: string }>;
+  creatorReview?: { text: string; author?: string; rating: number; createdAt?: string } | null;
+  reviews?: Array<{ text: string; author?: string; rating: number; createdAt?: string }>;
 };
 
 const defaultPosition = { lat: 12.9716, lng: 77.5946 }; // Bengaluru

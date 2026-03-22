@@ -17,6 +17,8 @@ type PlacePopupProps = {
     _id?: string;
     name: string;
     category: string;
+    addedBy?: string;
+    createdAt?: string;
     area?: string;
     rating?: number;
     description?: string;
@@ -30,11 +32,13 @@ type PlacePopupProps = {
     menuImages?: PlaceMedia[];
     creatorReview?: {
       text: string;
+      author?: string;
       rating: number;
       createdAt?: string;
     } | null;
     reviews?: Array<{
       text: string;
+      author?: string;
       rating: number;
       createdAt?: string;
     }>;
@@ -49,8 +53,8 @@ type PlacePopupProps = {
     rating?: number;
     photos?: PlaceMedia[];
     menuImages?: PlaceMedia[];
-    creatorReview?: { text: string; rating: number; createdAt?: string } | null;
-    reviews?: Array<{ text: string; rating: number; createdAt?: string }>;
+    creatorReview?: { text: string; author?: string; rating: number; createdAt?: string } | null;
+    reviews?: Array<{ text: string; author?: string; rating: number; createdAt?: string }>;
   }) => void;
 };
 
@@ -82,7 +86,7 @@ const normalizeMedia = (items?: PlaceMedia[]) =>
     .filter((item): item is { id: string; src: string; alt: string; label: string } => Boolean(item));
 
 const averageRatingFromReviews = (
-  reviews: Array<{ text: string; rating: number; createdAt?: string }>
+  reviews: Array<{ text: string; author?: string; rating: number; createdAt?: string }>
 ) => {
   if (!reviews.length) {
     return null;
@@ -103,8 +107,8 @@ const buildVisibleReviews = ({
   creatorReview,
   reviews,
 }: {
-  creatorReview?: { text: string; rating: number; createdAt?: string } | null;
-  reviews?: Array<{ text: string; rating: number; createdAt?: string }>;
+  creatorReview?: { text: string; author?: string; rating: number; createdAt?: string } | null;
+  reviews?: Array<{ text: string; author?: string; rating: number; createdAt?: string }>;
 }) => {
   const normalizedReviews = Array.isArray(reviews) ? reviews : [];
 
@@ -118,6 +122,36 @@ const buildVisibleReviews = ({
   }
 
   return normalizedReviews;
+};
+
+const displayUserName = (value?: string) => {
+  const trimmedValue = value?.trim();
+
+  if (!trimmedValue) {
+    return "";
+  }
+
+  return trimmedValue.split(" ")[0] || "";
+};
+
+const formatAddedAt = (value?: string) => {
+  if (!value) {
+    return "";
+  }
+
+  const parsedValue = new Date(value);
+
+  if (Number.isNaN(parsedValue.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsedValue);
 };
 
 export default function PlacePopup({
@@ -200,6 +234,9 @@ export default function PlacePopup({
   const overview = place.overview ?? place.description;
   const reviewCount = reviews.length;
   const supportsMenu = ["cafe", "food"].includes(place.category.trim().toLowerCase());
+  const addedByName = displayUserName(place.addedBy);
+  const addedAt = formatAddedAt(place.createdAt);
+  const creatorReviewAuthor = displayUserName(place.creatorReview?.author) || addedByName;
 
   const handleMenuFilesSelected = async (event: ChangeEvent<HTMLInputElement>) => {
     const fileList = event.target.files;
@@ -381,7 +418,7 @@ export default function PlacePopup({
         ? savedPlace.reviews.filter(
             (
               review: unknown
-            ): review is { text: string; rating: number; createdAt?: string } =>
+            ): review is { text: string; author?: string; rating: number; createdAt?: string } =>
               Boolean(review) &&
               typeof review === "object" &&
               typeof (review as { text?: unknown }).text === "string" &&
@@ -431,7 +468,12 @@ export default function PlacePopup({
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[#5c4631]">
               {place.area ? <span>{place.area}</span> : null}
               {typeof displayedRating === "number" && displayedRating > 0 ? (
-                <span>{displayedRating.toFixed(1)} rating</span>
+                <span className="inline-flex items-center gap-1">
+                  <span aria-hidden="true" className="text-amber-500">
+                    ★
+                  </span>
+                  <span>{displayedRating.toFixed(1)}</span>
+                </span>
               ) : null}
               {place.openTime && place.closeTime ? (
                 <span>
@@ -490,6 +532,12 @@ export default function PlacePopup({
               <section className="space-y-2">
                 <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">One-Liner</h3>
                 <p className="text-sm leading-6 text-[#3f2f22]">{overview}</p>
+                {addedByName ? (
+                  <p className="text-xs font-medium uppercase tracking-[0.12em] text-[#8b6f4e]">
+                    Added by {addedByName}
+                  </p>
+                ) : null}
+                {addedAt ? <p className="text-xs text-[#93795d]">{addedAt}</p> : null}
               </section>
             ) : null}
 
@@ -620,7 +668,18 @@ export default function PlacePopup({
                   {reviews.map((review, index) => (
                     <li key={`${review.text}-${index}`} className="rounded-xl border border-[#e4d7c8] bg-[#fffaf2] px-3 py-3">
                       <div className="mb-1 flex items-center justify-between gap-3">
-                        <span className="font-medium text-[#3f2f22]">{`Review ${index + 1}`}</span>
+                        <div>
+                          <span className="font-medium text-[#3f2f22]">
+                            {displayUserName(review.author) ||
+                              (review.text === place.creatorReview?.text &&
+                              review.rating === place.creatorReview?.rating
+                                ? creatorReviewAuthor
+                                : `Review ${index + 1}`)}
+                          </span>
+                          {formatAddedAt(review.createdAt) ? (
+                            <p className="text-xs text-[#93795d]">{formatAddedAt(review.createdAt)}</p>
+                          ) : null}
+                        </div>
                         <span className="text-sm font-semibold text-[#8b6f4e]">{`${review.rating.toFixed(1)} / 5`}</span>
                       </div>
                       <p>{review.text}</p>

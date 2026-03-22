@@ -67,6 +67,24 @@ export type AddedPlace = {
 
 const PLACE_CATEGORIES = ["cafe", "food", "malls", "metro", "bmtc", "park"] as const;
 type PlaceCategory = (typeof PLACE_CATEGORIES)[number];
+const TIME_OPTIONS = ["morning", "noon", "evening", "night"] as const;
+type TimeOption = (typeof TIME_OPTIONS)[number];
+
+const TIME_TAGS: Record<TimeOption, string> = {
+  morning: "breakfast",
+  noon: "lunch",
+  evening: "snacks",
+  night: "late-night",
+};
+
+const DEFAULT_CATEGORY_TIMES: Partial<Record<PlaceCategory, TimeOption[]>> = {
+  cafe: ["morning", "evening"],
+  park: ["morning", "evening"],
+  food: ["noon", "night"],
+};
+
+const inferTagsFromCategory = (category: PlaceCategory) =>
+  (DEFAULT_CATEGORY_TIMES[category] ?? []).map((time) => TIME_TAGS[time]);
 
 const categoryFromOSMType = (type: string): string => {
   if (["cafe"].includes(type)) return "cafe";
@@ -113,6 +131,7 @@ export default function AddPlaceForm({
   const [searching, setSearching] = useState(false);
   const [selected, setSelected] = useState<SelectedPlace | null>(null);
   const [category, setCategory] = useState<PlaceCategory>("food");
+  const [bestTimes, setBestTimes] = useState<TimeOption[]>([]);
 
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
@@ -130,6 +149,7 @@ export default function AddPlaceForm({
     setSearching(false);
     setSelected(null);
     setCategory("food");
+    setBestTimes([]);
     setRating(0);
     setHoverRating(0);
     setReview("");
@@ -206,6 +226,7 @@ export default function AddPlaceForm({
       setSelected({ source: "osm", data: item.item });
       setQuery(shortName(item.item));
       setCategory(categoryFromOSMType(item.item.type) as PlaceCategory);
+      setBestTimes([]);
     }
 
     setSearchResults([]);
@@ -248,6 +269,7 @@ export default function AddPlaceForm({
 
     try {
       const osmPlace = selected.data;
+      const tags = bestTimes.length ? bestTimes.map((time) => TIME_TAGS[time]) : inferTagsFromCategory(category);
       const createRes = await fetch("/api/places", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -259,6 +281,7 @@ export default function AddPlaceForm({
           area: shortArea(osmPlace),
           rating,
           description: review.trim(),
+          tags,
           osmId: String(osmPlace.place_id),
         }),
       });
@@ -274,6 +297,7 @@ export default function AddPlaceForm({
         ...created,
         rating,
         description: review.trim(),
+        tags,
       });
 
       if (standalone) {
@@ -293,6 +317,12 @@ export default function AddPlaceForm({
   const osmResults = searchResults.filter((result) => result.source === "osm");
   const showDropdown = searchResults.length > 0 && !selected;
   const canSubmit = !!selected && !!category && rating > 0 && review.trim().length > 0;
+
+  const toggleBestTime = (time: TimeOption) => {
+    setBestTimes((current) =>
+      current.includes(time) ? current.filter((item) => item !== time) : [...current, time]
+    );
+  };
 
   return (
     <div
@@ -353,7 +383,7 @@ export default function AddPlaceForm({
               </>
             )}
 
-            <label className="mb-2.5 mt-8 block text-[10px] uppercase tracking-widest text-white/30">
+            <label className="mb-2.5 mt-8 block text-[10px] uppercase tracking-widest text-white">
               01 -- Find the place
             </label>
 
@@ -463,7 +493,7 @@ export default function AddPlaceForm({
               selected ? "opacity-100" : "pointer-events-none opacity-30"
             }`}
           >
-            <label className="mb-3 block text-[10px] uppercase tracking-widest text-white/30">
+            <label className="mb-3 block text-[10px] uppercase tracking-widest text-white">
               02 -- Place category
             </label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -489,7 +519,7 @@ export default function AddPlaceForm({
               selected ? "opacity-100" : "pointer-events-none opacity-30"
             }`}
           >
-            <label className="mb-3 block text-[10px] uppercase tracking-widest text-white/30">
+            <label className="mb-3 block text-[10px] uppercase tracking-widest text-white">
               03 -- Your rating
             </label>
             <div className="flex gap-3">
@@ -523,7 +553,7 @@ export default function AddPlaceForm({
               selected ? "opacity-100" : "pointer-events-none opacity-30"
             }`}
           >
-            <label className="mb-2.5 block text-[10px] uppercase tracking-widest text-white/30">
+            <label className="mb-2.5 block text-[10px] uppercase tracking-widest text-white">
               04 -- One line about it
             </label>
             <input
@@ -535,6 +565,32 @@ export default function AddPlaceForm({
               className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-white/20 focus:border-white/25"
             />
             <p className="mt-1.5 text-right text-xs text-white/20">{review.length}/120</p>
+          </div>
+
+          <div
+            className={`mb-10 w-full transition-opacity duration-300 ${
+              selected ? "opacity-100" : "pointer-events-none opacity-30"
+            }`}
+          >
+            <label className="mb-2.5 block text-[10px] uppercase tracking-widest text-white">
+              05 -- Best time to visit (optional)
+            </label>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {TIME_OPTIONS.map((time) => (
+                <button
+                  key={time}
+                  type="button"
+                  onClick={() => toggleBestTime(time)}
+                  className={`rounded-xl border px-3 py-3 text-sm font-medium capitalize transition ${
+                    bestTimes.includes(time)
+                      ? "border-white bg-white text-[#111]"
+                      : "border-white/10 bg-white/5 text-white/75 hover:border-white/20 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  {time}
+                </button>
+              ))}
+            </div>
           </div>
 
           {error && (

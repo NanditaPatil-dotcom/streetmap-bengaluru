@@ -2,6 +2,13 @@ import connectDB from "@/lib/mongodb";
 import Place from "@/models/Place";
 import { NextRequest, NextResponse } from "next/server";
 
+const DEFAULT_CATEGORY_TAGS: Record<string, string[]> = {
+  cafe: ["breakfast", "snacks"],
+  park: ["breakfast", "snacks"],
+  food: ["lunch", "late-night"],
+  restaurant: ["lunch", "late-night"],
+};
+
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
@@ -87,6 +94,10 @@ export async function POST(req: Request) {
     await connectDB();
 
     const body = await req.json();
+    const inferredTags =
+      Array.isArray(body.tags) && body.tags.length > 0
+        ? body.tags
+        : DEFAULT_CATEGORY_TAGS[body.category] || [];
 
     // Prevent duplicates — if a place with the same OSM id already exists, return it
     if (body.osmId) {
@@ -104,7 +115,7 @@ export async function POST(req: Request) {
         coordinates: [body.lng, body.lat], // [lng, lat] — GeoJSON order
       },
       description: body.description || "",
-      tags: body.tags || [],
+      tags: inferredTags,
       osmId: body.osmId || null,
     });
 

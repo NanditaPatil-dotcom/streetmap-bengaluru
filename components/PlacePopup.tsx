@@ -199,6 +199,7 @@ export default function PlacePopup({
   const menuItems = normalizeMedia(menuUploads);
   const overview = place.overview ?? place.description;
   const reviewCount = reviews.length;
+  const supportsMenu = ["cafe", "food"].includes(place.category.trim().toLowerCase());
 
   const handleMenuFilesSelected = async (event: ChangeEvent<HTMLInputElement>) => {
     const fileList = event.target.files;
@@ -487,38 +488,40 @@ export default function PlacePopup({
           <>
             {overview ? (
               <section className="space-y-2">
-                <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">Overview</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">One-Liner</h3>
                 <p className="text-sm leading-6 text-[#3f2f22]">{overview}</p>
               </section>
             ) : null}
 
-            <section className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">Menu</h3>
-              {menuItems.length ? (
-                <div className="grid grid-cols-2 gap-3">
-                  {menuItems.map((item) => (
-                    <figure key={item.id} className="overflow-hidden rounded-2xl bg-[#ead7bc]">
-                      <img src={item.src} alt={item.alt || `${place.name} menu`} className="h-32 w-full object-cover" />
-                      {item.label ? <figcaption className="px-3 py-2 text-xs font-medium text-[#5c4631]">{item.label}</figcaption> : null}
-                    </figure>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-dashed border-[#d5c7b6] px-4 py-5 text-sm text-[#7a654f]">
-                  <p>No menu yet</p>
-                  <p className="mt-1 text-[#93795d]">Be the first to add</p>
-                  <button
-                    type="button"
-                    onClick={() => menuInputRef.current?.click()}
-                    disabled={isUploadingMenu}
-                    className="mt-4 rounded-full border border-[#cdb79f] bg-white/70 px-4 py-2 text-sm font-medium text-[#4f3a28] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isUploadingMenu ? "Uploading..." : "+ Add Menu"}
-                  </button>
-                  {menuUploadError ? <p className="mt-3 text-sm text-[#b53f2d]">{menuUploadError}</p> : null}
-                </div>
-              )}
-            </section>
+            {supportsMenu ? (
+              <section className="space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">Menu</h3>
+                {menuItems.length ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {menuItems.map((item) => (
+                      <figure key={item.id} className="overflow-hidden rounded-2xl bg-[#ead7bc]">
+                        <img src={item.src} alt={item.alt || `${place.name} menu`} className="h-32 w-full object-cover" />
+                        {item.label ? <figcaption className="px-3 py-2 text-xs font-medium text-[#5c4631]">{item.label}</figcaption> : null}
+                      </figure>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-[#d5c7b6] px-4 py-5 text-sm text-[#7a654f]">
+                    <p>No menu yet</p>
+                    <p className="mt-1 text-[#93795d]">Be the first to add</p>
+                    <button
+                      type="button"
+                      onClick={() => menuInputRef.current?.click()}
+                      disabled={isUploadingMenu}
+                      className="mt-4 rounded-full border border-[#cdb79f] bg-white/70 px-4 py-2 text-sm font-medium text-[#4f3a28] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isUploadingMenu ? "Uploading..." : "+ Add Menu"}
+                    </button>
+                    {menuUploadError ? <p className="mt-3 text-sm text-[#b53f2d]">{menuUploadError}</p> : null}
+                  </div>
+                )}
+              </section>
+            ) : null}
 
             <section className="space-y-3">
               <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">Photos</h3>
@@ -695,21 +698,6 @@ export default function PlacePopup({
           </section>
         )}
 
-        {place.tags?.length ? (
-          <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">Tags</h3>
-            <div className="flex flex-wrap gap-2">
-              {place.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full border border-[#d5c7b6] bg-white/70 px-3 py-1 text-xs font-medium text-[#5c4631]"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          </section>
-        ) : null}
         <input
           ref={menuInputRef}
           type="file"

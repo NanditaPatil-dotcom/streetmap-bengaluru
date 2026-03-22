@@ -7,6 +7,23 @@ import type { MapRef } from "react-map-gl/maplibre";
 import type { StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
+// Custom icons mapping for different place categories
+const icons = {
+  cafe: "/icons/cafe.png",
+  park: "/icons/park.png",
+  metro: "/icons/metro.png",
+  bmtc: "/icons/bus.png",
+  food: "/icons/food.png",
+  malls: "/icons/malls.png",
+  default: "/icons/default.png",
+};
+
+// Function to get the icon for a place category
+function getIcon(category: string): string {
+  const normalizedCategory = category?.toLowerCase().trim();
+  return icons[normalizedCategory as keyof typeof icons] || icons.default;
+}
+
 type Place = {
   _id?: string;
   name: string;
@@ -138,7 +155,7 @@ export default function Map({
           >
             <button
               aria-label={`Preview details for ${place.name}`}
-              className="text-[28px] leading-none"
+              className="relative group cursor-pointer transition-transform hover:scale-110"
               onClick={() => onPlaceSelect?.(place)}
               onMouseEnter={() => {
                 clearClosePopupTimeout();
@@ -154,7 +171,13 @@ export default function Map({
               onFocus={() => onPlaceSelect?.(place)}
               type="button"
             >
-              📍
+              <img
+                src={getIcon(place.category)}
+                alt={place.category}
+                width={30}
+                height={30}
+                className="drop-shadow-lg"
+              />
             </button>
           </Marker>
         ))}

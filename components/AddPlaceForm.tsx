@@ -65,12 +65,17 @@ export type AddedPlace = {
   tags?: string[];
 };
 
+const PLACE_CATEGORIES = ["cafe", "food", "malls", "metro", "bmtc", "park"] as const;
+type PlaceCategory = (typeof PLACE_CATEGORIES)[number];
+
 const categoryFromOSMType = (type: string): string => {
-  if (["cafe", "restaurant", "fast_food", "bar", "pub"].includes(type)) return "cafe";
+  if (["cafe"].includes(type)) return "cafe";
+  if (["restaurant", "fast_food", "bar", "pub"].includes(type)) return "food";
   if (["park", "garden", "nature_reserve"].includes(type)) return "park";
   if (["station", "subway_entrance", "halt"].includes(type)) return "metro";
   if (["bus_stop", "bus_station"].includes(type)) return "bmtc";
-  return "place";
+  if (["mall"].includes(type)) return "malls";
+  return "food";
 };
 
 const shortName = (result: OSMResult) =>
@@ -107,6 +112,7 @@ export default function AddPlaceForm({
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [selected, setSelected] = useState<SelectedPlace | null>(null);
+  const [category, setCategory] = useState<PlaceCategory>("food");
 
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
@@ -123,6 +129,7 @@ export default function AddPlaceForm({
     setSearchResults([]);
     setSearching(false);
     setSelected(null);
+    setCategory("food");
     setRating(0);
     setHoverRating(0);
     setReview("");
@@ -198,6 +205,7 @@ export default function AddPlaceForm({
     } else {
       setSelected({ source: "osm", data: item.item });
       setQuery(shortName(item.item));
+      setCategory(categoryFromOSMType(item.item.type) as PlaceCategory);
     }
 
     setSearchResults([]);
@@ -217,6 +225,11 @@ export default function AddPlaceForm({
 
     if (!rating) {
       setError("Please add a rating.");
+      return;
+    }
+
+    if (!category) {
+      setError("Please choose a category.");
       return;
     }
 
@@ -242,7 +255,7 @@ export default function AddPlaceForm({
           name: shortName(osmPlace),
           lat: parseFloat(osmPlace.lat),
           lng: parseFloat(osmPlace.lon),
-          category: categoryFromOSMType(osmPlace.type),
+          category,
           area: shortArea(osmPlace),
           rating,
           description: review.trim(),
@@ -279,7 +292,7 @@ export default function AddPlaceForm({
   const dbResults = searchResults.filter((result) => result.source === "db");
   const osmResults = searchResults.filter((result) => result.source === "osm");
   const showDropdown = searchResults.length > 0 && !selected;
-  const canSubmit = !!selected && rating > 0 && review.trim().length > 0;
+  const canSubmit = !!selected && !!category && rating > 0 && review.trim().length > 0;
 
   return (
     <div
@@ -451,7 +464,33 @@ export default function AddPlaceForm({
             }`}
           >
             <label className="mb-3 block text-[10px] uppercase tracking-widest text-white/30">
-              02 -- Your rating
+              02 -- Place category
+            </label>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {PLACE_CATEGORIES.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setCategory(option)}
+                  className={`rounded-xl border px-3 py-3 text-sm font-medium capitalize transition ${
+                    category === option
+                      ? "border-white bg-white text-[#111]"
+                      : "border-white/10 bg-white/5 text-white/75 hover:border-white/20 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div
+            className={`mb-8 w-full transition-opacity duration-300 ${
+              selected ? "opacity-100" : "pointer-events-none opacity-30"
+            }`}
+          >
+            <label className="mb-3 block text-[10px] uppercase tracking-widest text-white/30">
+              03 -- Your rating
             </label>
             <div className="flex gap-3">
               {[1, 2, 3, 4, 5].map((star) => (
@@ -485,7 +524,7 @@ export default function AddPlaceForm({
             }`}
           >
             <label className="mb-2.5 block text-[10px] uppercase tracking-widest text-white/30">
-              03 -- One line about it
+              04 -- One line about it
             </label>
             <input
               type="text"

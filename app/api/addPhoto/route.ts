@@ -17,12 +17,12 @@ export async function POST(req: Request) {
     }
 
     if (!images.length) {
-      return NextResponse.json({ error: "At least one menu image is required." }, { status: 400 });
+      return NextResponse.json({ error: "At least one photo is required." }, { status: 400 });
     }
 
     const updatedPlace = await Place.findByIdAndUpdate(
       placeId,
-      { $push: { menuImages: { $each: images } } },
+      { $push: { photos: { $each: images } } },
       { new: true }
     ).lean();
 
@@ -32,8 +32,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ place: updatedPlace });
   } catch (error) {
-    console.error("Failed to add menu images", error);
-    const message = error instanceof Error ? error.message : "Failed to add menu images.";
+    console.error("Failed to add photos", error);
+    const message = error instanceof Error ? error.message : "Failed to add photos.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

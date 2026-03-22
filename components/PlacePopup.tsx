@@ -47,6 +47,7 @@ type PlacePopupProps = {
   onPlaceUpdated?: (place: {
     _id?: string;
     rating?: number;
+    photos?: PlaceMedia[];
     menuImages?: PlaceMedia[];
     creatorReview?: { text: string; rating: number; createdAt?: string } | null;
     reviews?: Array<{ text: string; rating: number; createdAt?: string }>;
@@ -130,19 +131,26 @@ export default function PlacePopup({
   const [reviews, setReviews] = useState(buildVisibleReviews(place));
   const [activeSection, setActiveSection] = useState<"overview" | "reviews">("overview");
   const [menuUploads, setMenuUploads] = useState<PlaceMedia[]>(place.menuImages ?? place.menu ?? []);
+  const [photoUploads, setPhotoUploads] = useState<PlaceMedia[]>(place.photos ?? place.images ?? []);
   const [isUploadingMenu, setIsUploadingMenu] = useState(false);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   const [menuUploadError, setMenuUploadError] = useState("");
+  const [photoUploadError, setPhotoUploadError] = useState("");
+  const [isPhotoGalleryOpen, setIsPhotoGalleryOpen] = useState(false);
   const [tipDraft, setTipDraft] = useState("");
   const [tipRating, setTipRating] = useState(0);
   const [isTipFormOpen, setIsTipFormOpen] = useState(false);
   const [isSubmittingTip, setIsSubmittingTip] = useState(false);
   const [tipError, setTipError] = useState("");
   const menuInputRef = useRef<HTMLInputElement | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setReviews(buildVisibleReviews(place));
     setMenuUploads(place.menuImages ?? place.menu ?? []);
+    setPhotoUploads(place.photos ?? place.images ?? []);
     setActiveSection("overview");
+    setIsPhotoGalleryOpen(false);
   }, [place]);
 
   const displayedRating = averageRatingFromReviews(reviews) ?? place.rating ?? null;
@@ -186,7 +194,8 @@ export default function PlacePopup({
     );
   }
 
-  const photoItems = normalizeMedia(place.photos?.length ? place.photos : place.images);
+  const photoItems = normalizeMedia(photoUploads);
+  const visiblePhotoItems = photoItems.slice(0, 3);
   const menuItems = normalizeMedia(menuUploads);
   const overview = place.overview ?? place.description;
   const reviewCount = reviews.length;
@@ -256,6 +265,75 @@ export default function PlacePopup({
       setMenuUploadError(error instanceof Error ? error.message : "Failed to upload menu images.");
     } finally {
       setIsUploadingMenu(false);
+      event.target.value = "";
+    }
+  };
+
+  const handlePhotoFilesSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const fileList = event.target.files;
+    const files = fileList ? Array.from(fileList).filter((file) => file.type.startsWith("image/")) : [];
+
+    if (!place._id) {
+      setPhotoUploadError("This place cannot accept photo uploads yet.");
+      event.target.value = "";
+      return;
+    }
+
+    if (!files.length) {
+      event.target.value = "";
+      return;
+    }
+
+    setIsUploadingPhotos(true);
+    setPhotoUploadError("");
+
+    try {
+      const images = await Promise.all(
+        files.map(
+          (file) =>
+            new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                if (typeof reader.result === "string") {
+                  resolve(reader.result);
+                  return;
+                }
+                reject(new Error("Failed to read image."));
+              };
+              reader.onerror = () => reject(new Error("Failed to read image."));
+              reader.readAsDataURL(file);
+            })
+        )
+      );
+
+      const response = await fetch("/api/addPhoto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          placeId: place._id,
+          images,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof data.error === "string" ? data.error : "Failed to upload photos.");
+      }
+
+      const savedPlace = data.place && typeof data.place === "object" ? data.place : null;
+      const nextPhotos = Array.isArray(savedPlace?.photos)
+        ? savedPlace.photos.filter((image: unknown): image is string => typeof image === "string")
+        : [];
+
+      setPhotoUploads(nextPhotos);
+      onPlaceUpdated?.({
+        _id: typeof savedPlace?._id === "string" ? savedPlace._id : place._id,
+        photos: nextPhotos,
+      });
+    } catch (error) {
+      setPhotoUploadError(error instanceof Error ? error.message : "Failed to upload photos.");
+    } finally {
+      setIsUploadingPhotos(false);
       event.target.value = "";
     }
   };
@@ -338,7 +416,7 @@ export default function PlacePopup({
 
   return (
     <div
-      className="flex h-full flex-col bg-[#f6f1e8] text-[#1b140e]"
+      className="relative flex h-full flex-col bg-[#f6f1e8] text-[#1b140e]"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
@@ -445,24 +523,85 @@ export default function PlacePopup({
             <section className="space-y-3">
               <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">Photos</h3>
               {photoItems.length ? (
-                <div className="grid grid-cols-2 gap-3">
-                  {photoItems.map((item) => (
-                    <figure key={item.id} className="overflow-hidden rounded-2xl bg-[#ead7bc]">
-                      <img src={item.src} alt={item.alt || `${place.name} photo`} className="h-36 w-full object-cover" />
-                      {item.label ? <figcaption className="px-3 py-2 text-xs font-medium text-[#5c4631]">{item.label}</figcaption> : null}
-                    </figure>
-                  ))}
-                </div>
+                <>
+                  <div className="-mx-5 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <div className="flex w-max gap-3">
+                      {visiblePhotoItems.map((item, index) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setIsPhotoGalleryOpen(true)}
+                          className={`group relative shrink-0 overflow-hidden rounded-[28px] bg-[#ead7bc] text-left ${
+                            index === 0 ? "h-72 w-[18.5rem]" : "h-72 w-[11.5rem]"
+                          }`}
+                        >
+                          <img
+                            src={item.src}
+                            alt={item.alt || `${place.name} photo`}
+                            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                          />
+                          {item.label ? (
+                            <span className="absolute inset-x-3 bottom-3 rounded-full bg-black/45 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                              {item.label}
+                            </span>
+                          ) : null}
+                        </button>
+                      ))}
+
+                      <div className="grid h-72 w-[11.5rem] shrink-0 grid-rows-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setIsPhotoGalleryOpen(true)}
+                          className="relative overflow-hidden rounded-[28px] bg-[#7a654f] text-left text-white"
+                        >
+                          {visiblePhotoItems[1] ? (
+                            <>
+                              <img
+                                src={visiblePhotoItems[1].src}
+                                alt={visiblePhotoItems[1].alt || `${place.name} photo gallery`}
+                                className="absolute inset-0 h-full w-full object-cover opacity-75"
+                              />
+                              <div className="absolute inset-0 bg-black/35" />
+                            </>
+                          ) : null}
+                          <div className="relative flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
+                            <span className="text-2xl">▦</span>
+                            <span className="text-2xl font-semibold leading-none">See all</span>
+                            <span className="text-sm text-white/85">{photoItems.length} photos</span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => photoInputRef.current?.click()}
+                          disabled={isUploadingPhotos}
+                          className="rounded-[28px] bg-[#7a654f] px-4 py-5 text-white transition hover:bg-[#35281d] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                            <span className="text-3xl">+</span>
+                            <span className="text-xl font-semibold leading-none">
+                              {isUploadingPhotos ? "Uploading..." : "Add photos"}
+                            </span>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  {photoUploadError ? <p className="text-sm text-[#b53f2d]">{photoUploadError}</p> : null}
+                </>
               ) : (
                 <div className="rounded-2xl border border-dashed border-[#d5c7b6] px-4 py-5 text-sm text-[#7a654f]">
                   <p>No photos yet</p>
                   <p className="mt-1 text-[#93795d]">Be the first to add</p>
                   <button
                     type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    disabled={isUploadingPhotos}
                     className="mt-4 rounded-full border border-[#cdb79f] bg-white/70 px-4 py-2 text-sm font-medium text-[#4f3a28] transition hover:bg-white"
                   >
-                    + Add Photo
+                    {isUploadingPhotos ? "Uploading..." : "+ Add Photo"}
                   </button>
+                  {photoUploadError ? <p className="mt-3 text-sm text-[#b53f2d]">{photoUploadError}</p> : null}
                 </div>
               )}
             </section>
@@ -579,7 +718,39 @@ export default function PlacePopup({
           className="hidden"
           onChange={handleMenuFilesSelected}
         />
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={handlePhotoFilesSelected}
+        />
       </div>
+      {isPhotoGalleryOpen && photoItems.length ? (
+        <div className="absolute inset-0 z-20 flex flex-col bg-[#1b140e]/92 backdrop-blur-sm">
+          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 text-white">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/60">Photos</p>
+              <h3 className="mt-1 text-lg font-semibold">{place.name}</h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPhotoGalleryOpen(false)}
+              className="rounded-full border border-white/15 px-3 py-1 text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              Close
+            </button>
+          </div>
+          <div className="grid flex-1 grid-cols-2 content-start gap-3 overflow-y-auto px-5 py-5 sm:grid-cols-3">
+            {photoItems.map((item) => (
+              <figure key={`gallery-${item.id}`} className="aspect-square overflow-hidden rounded-2xl bg-white/10">
+                <img src={item.src} alt={item.alt || `${place.name} photo`} className="h-full w-full object-cover" />
+              </figure>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -94,10 +94,21 @@ export async function POST(req: Request) {
     await connectDB();
 
     const body = await req.json();
+    const initialRating = typeof body.rating === "number" ? body.rating : 0;
     const inferredTags =
       Array.isArray(body.tags) && body.tags.length > 0
         ? body.tags
         : DEFAULT_CATEGORY_TAGS[body.category] || [];
+    const initialReview =
+      initialRating > 0 && typeof body.description === "string" && body.description.trim()
+        ? [
+            {
+              text: body.description.trim(),
+              rating: initialRating,
+            },
+          ]
+        : [];
+    const creatorReview = initialReview.length ? initialReview[0] : null;
 
     // Prevent duplicates — if a place with the same OSM id already exists, return it
     if (body.osmId) {
@@ -109,13 +120,15 @@ export async function POST(req: Request) {
       name: body.name,
       category: body.category || "place",
       area: body.area || "",
-      rating: typeof body.rating === "number" ? body.rating : 0,
+      rating: initialRating,
       location: {
         type: "Point",
         coordinates: [body.lng, body.lat], // [lng, lat] — GeoJSON order
       },
       description: body.description || "",
       tags: inferredTags,
+      creatorReview,
+      reviews: initialReview,
       osmId: body.osmId || null,
     });
 

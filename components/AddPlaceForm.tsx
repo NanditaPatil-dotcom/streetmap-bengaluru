@@ -63,6 +63,8 @@ export type AddedPlace = {
   openTime?: string;
   closeTime?: string;
   tags?: string[];
+  creatorReview?: { text: string; rating: number; createdAt?: string } | null;
+  reviews?: Array<{ text: string; rating: number; createdAt?: string }>;
 };
 
 const PLACE_CATEGORIES = ["cafe", "food", "malls", "metro", "bmtc", "park"] as const;
@@ -298,6 +300,8 @@ export default function AddPlaceForm({
         rating,
         description: review.trim(),
         tags,
+        creatorReview: { text: review.trim(), rating },
+        reviews: [{ text: review.trim(), rating }],
       });
 
       if (standalone) {

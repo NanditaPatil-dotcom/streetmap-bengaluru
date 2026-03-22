@@ -42,6 +42,8 @@ type Place = {
   photos?: Array<string | { url?: string; src?: string; alt?: string; label?: string; title?: string }>;
   menu?: Array<string | { url?: string; src?: string; alt?: string; label?: string; title?: string }>;
   menuImages?: Array<string | { url?: string; src?: string; alt?: string; label?: string; title?: string }>;
+  creatorReview?: { text: string; rating: number; createdAt?: string } | null;
+  reviews?: Array<{ text: string; rating: number; createdAt?: string }>;
   reviewCount?: number;
 };
 
@@ -133,6 +135,24 @@ export default function Home() {
     }
   };
 
+  const handlePlaceUpdated = (updatedPlace: Partial<Place> & { _id?: string }) => {
+    if (!updatedPlace._id) {
+      return;
+    }
+
+    setPlaces((currentPlaces) =>
+      currentPlaces.map((place) =>
+        place._id === updatedPlace._id ? { ...place, ...updatedPlace } : place
+      )
+    );
+
+    setSelectedPlace((currentPlace) =>
+      currentPlace?._id === updatedPlace._id
+        ? ({ ...currentPlace, ...updatedPlace } as Place)
+        : currentPlace
+    );
+  };
+
   return (
     <div className="h-screen w-full">
       <div className="pointer-events-none absolute left-1/2 top-4 z-[1010] w-[calc(100%-1rem)] max-w-[calc(100%-1rem)] -translate-x-1/2 px-1 md:left-[62.5%] md:w-[calc(78%-1.5rem)] md:max-w-[52rem]">
@@ -213,6 +233,9 @@ export default function Home() {
             place={visibleSelectedPlace}
             variant="sidebar"
             onClose={() => handlePlaceSelect(null)}
+            onPlaceUpdated={(updatedFields) =>
+              handlePlaceUpdated({ _id: visibleSelectedPlace._id, ...updatedFields })
+            }
           />
         ) : null}
       </aside>

@@ -25,7 +25,7 @@ function getCurrentMode() {
 
 
 type Place = {
-  _id: string;
+  _id?: string;
   name: string;
   category: string;
   area?: string;
@@ -135,15 +135,15 @@ export default function Home() {
 
   return (
     <div className="h-screen w-full">
-      <div className="pointer-events-none absolute left-1/2 top-4 z-[1000] w-[calc(100%-1.5rem)] max-w-[calc(100%-1.5rem)] -translate-x-1/2 px-1 md:left-[62.5%] md:w-[calc(75%-2rem)] md:max-w-[40rem]">
-        <div className="relative">
+      <div className="pointer-events-none absolute left-1/2 top-4 z-[1010] w-[calc(100%-1rem)] max-w-[calc(100%-1rem)] -translate-x-1/2 px-1 md:left-[62.5%] md:w-[calc(78%-1.5rem)] md:max-w-[52rem]">
+        <div className="relative h-0">
           <button
             onClick={() => {
               setSelectedPlace(null);
               setActivePlaceId(null);
               setIsAddSidebarOpen(true);
             }}
-            className="pointer-events-auto absolute right-2 top-[4.75rem] flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-[#111]/95 text-2xl font-light text-white shadow-xl backdrop-blur-md transition-all duration-200 hover:bg-white hover:text-black sm:right-0 sm:top-7 sm:-translate-y-1/2 sm:translate-x-[calc(100%+0.5rem)]"
+            className="pointer-events-auto absolute right-0 top-[5.2rem] flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-[#111]/95 text-2xl font-light text-white shadow-xl backdrop-blur-md transition-all duration-200 hover:bg-white hover:text-black sm:top-1 sm:translate-x-[calc(100%+0.5rem)]"
             aria-label="Open add place sidebar"
             aria-controls="add-place-sidebar"
           >

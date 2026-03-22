@@ -55,6 +55,18 @@ const PlaceSchema = new mongoose.Schema({
     }
   ],
 
+  menuImages: [
+    {
+      type: String
+    }
+  ],
+
+  photos: [
+    {
+      type: String
+    }
+  ],
+
   reviews: [ReviewSchema],
 
   creatorReview: {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 type PlaceMedia =
   | string
@@ -47,6 +47,7 @@ type PlacePopupProps = {
   onPlaceUpdated?: (place: {
     _id?: string;
     rating?: number;
+    menuImages?: PlaceMedia[];
     creatorReview?: { text: string; rating: number; createdAt?: string } | null;
     reviews?: Array<{ text: string; rating: number; createdAt?: string }>;
   }) => void;
@@ -127,14 +128,21 @@ export default function PlacePopup({
   onPlaceUpdated,
 }: PlacePopupProps) {
   const [reviews, setReviews] = useState(buildVisibleReviews(place));
+  const [activeSection, setActiveSection] = useState<"overview" | "reviews">("overview");
+  const [menuUploads, setMenuUploads] = useState<PlaceMedia[]>(place.menuImages ?? place.menu ?? []);
+  const [isUploadingMenu, setIsUploadingMenu] = useState(false);
+  const [menuUploadError, setMenuUploadError] = useState("");
   const [tipDraft, setTipDraft] = useState("");
   const [tipRating, setTipRating] = useState(0);
   const [isTipFormOpen, setIsTipFormOpen] = useState(false);
   const [isSubmittingTip, setIsSubmittingTip] = useState(false);
   const [tipError, setTipError] = useState("");
+  const menuInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setReviews(buildVisibleReviews(place));
+    setMenuUploads(place.menuImages ?? place.menu ?? []);
+    setActiveSection("overview");
   }, [place]);
 
   const displayedRating = averageRatingFromReviews(reviews) ?? place.rating ?? null;
@@ -179,9 +187,78 @@ export default function PlacePopup({
   }
 
   const photoItems = normalizeMedia(place.photos?.length ? place.photos : place.images);
-  const menuItems = normalizeMedia(place.menu?.length ? place.menu : place.menuImages);
+  const menuItems = normalizeMedia(menuUploads);
   const overview = place.overview ?? place.description;
   const reviewCount = reviews.length;
+
+  const handleMenuFilesSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const fileList = event.target.files;
+    const files = fileList ? Array.from(fileList).filter((file) => file.type.startsWith("image/")) : [];
+
+    if (!place._id) {
+      setMenuUploadError("This place cannot accept menu uploads yet.");
+      event.target.value = "";
+      return;
+    }
+
+    if (!files.length) {
+      event.target.value = "";
+      return;
+    }
+
+    setIsUploadingMenu(true);
+    setMenuUploadError("");
+
+    try {
+      const images = await Promise.all(
+        files.map(
+          (file) =>
+            new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                if (typeof reader.result === "string") {
+                  resolve(reader.result);
+                  return;
+                }
+                reject(new Error("Failed to read image."));
+              };
+              reader.onerror = () => reject(new Error("Failed to read image."));
+              reader.readAsDataURL(file);
+            })
+        )
+      );
+
+      const response = await fetch("/api/addMenu", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          placeId: place._id,
+          images,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof data.error === "string" ? data.error : "Failed to upload menu images.");
+      }
+
+      const savedPlace = data.place && typeof data.place === "object" ? data.place : null;
+      const nextMenuImages = Array.isArray(savedPlace?.menuImages)
+        ? savedPlace.menuImages.filter((image: unknown): image is string => typeof image === "string")
+        : [];
+
+      setMenuUploads(nextMenuImages);
+      onPlaceUpdated?.({
+        _id: typeof savedPlace?._id === "string" ? savedPlace._id : place._id,
+        menuImages: nextMenuImages,
+      });
+    } catch (error) {
+      setMenuUploadError(error instanceof Error ? error.message : "Failed to upload menu images.");
+    } finally {
+      setIsUploadingMenu(false);
+      event.target.value = "";
+    }
+  };
 
   const handleAddTip = async () => {
     if (!place._id) {
@@ -299,150 +376,185 @@ export default function PlacePopup({
       </div>
 
       <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
-        {overview ? (
-          <section className="space-y-2">
-            <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">Overview</h3>
-            <p className="text-sm leading-6 text-[#3f2f22]">{overview}</p>
-            <p className="pt-1 text-sm font-medium text-[#6b5239]">Community insights</p>
-          </section>
-        ) : null}
-
-        <section className="space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">Menu</h3>
-          {menuItems.length ? (
-            <div className="grid grid-cols-2 gap-3">
-              {menuItems.map((item) => (
-                <figure key={item.id} className="overflow-hidden rounded-2xl bg-[#ead7bc]">
-                  <img src={item.src} alt={item.alt || `${place.name} menu`} className="h-32 w-full object-cover" />
-                  {item.label ? <figcaption className="px-3 py-2 text-xs font-medium text-[#5c4631]">{item.label}</figcaption> : null}
-                </figure>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-[#d5c7b6] px-4 py-5 text-sm text-[#7a654f]">
-              <p>No menu yet</p>
-              <p className="mt-1 text-[#93795d]">Be the first to add</p>
-              <button
-                type="button"
-                className="mt-4 rounded-full border border-[#cdb79f] bg-white/70 px-4 py-2 text-sm font-medium text-[#4f3a28] transition hover:bg-white"
-              >
-                + Add Menu
-              </button>
-            </div>
-          )}
-        </section>
-
-        <section className="space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">Photos</h3>
-          {photoItems.length ? (
-            <div className="grid grid-cols-2 gap-3">
-              {photoItems.map((item) => (
-                <figure key={item.id} className="overflow-hidden rounded-2xl bg-[#ead7bc]">
-                  <img src={item.src} alt={item.alt || `${place.name} photo`} className="h-36 w-full object-cover" />
-                  {item.label ? <figcaption className="px-3 py-2 text-xs font-medium text-[#5c4631]">{item.label}</figcaption> : null}
-                </figure>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-[#d5c7b6] px-4 py-5 text-sm text-[#7a654f]">
-              <p>No photos yet</p>
-              <p className="mt-1 text-[#93795d]">Be the first to add</p>
-              <button
-                type="button"
-                className="mt-4 rounded-full border border-[#cdb79f] bg-white/70 px-4 py-2 text-sm font-medium text-[#4f3a28] transition hover:bg-white"
-              >
-                + Add Photo
-              </button>
-            </div>
-          )}
-        </section>
-
-        <section className="space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">
-            {`Reviews (${reviewCount})`}
-          </h3>
-          {reviews.length ? (
-            <div className="rounded-2xl border border-[#d5c7b6] bg-white/55 px-4 py-4">
-              <ul className="space-y-2 text-sm leading-6 text-[#3f2f22]">
-                {reviews.map((review, index) => (
-                  <li key={`${review.text}-${index}`} className="rounded-xl border border-[#e4d7c8] bg-[#fffaf2] px-3 py-3">
-                    <div className="mb-1 flex items-center justify-between gap-3">
-                      <span className="font-medium text-[#3f2f22]">{`Review ${index + 1}`}</span>
-                      <span className="text-sm font-semibold text-[#8b6f4e]">{`${review.rating.toFixed(1)} / 5`}</span>
-                    </div>
-                    <p>{review.text}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-[#d5c7b6] px-4 py-5 text-sm text-[#7a654f]">
-              <p>No reviews yet</p>
-              <p className="mt-1 text-[#93795d]">Be the first to share your experience</p>
-            </div>
-          )}
-
-          {isTipFormOpen ? (
-            <div className="rounded-2xl border border-[#d5c7b6] bg-white/55 p-4">
-              <div className="mb-3">
-                <p className="mb-2 text-sm font-medium text-[#3f2f22]">Your rating</p>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => setTipRating(star)}
-                      className={`text-2xl transition ${star <= tipRating ? "text-amber-500" : "text-[#d5c7b6]"}`}
-                    >
-                      ★
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <textarea
-                value={tipDraft}
-                onChange={(event) => setTipDraft(event.target.value)}
-                placeholder="Best dosa before 8 AM."
-                rows={3}
-                className="w-full rounded-xl border border-[#d5c7b6] bg-[#fdf9f2] px-3 py-3 text-sm text-[#1b140e] outline-none transition placeholder:text-[#9c8263] focus:border-[#b79975]"
-              />
-              {tipError ? <p className="mt-2 text-sm text-[#b53f2d]">{tipError}</p> : null}
-              <div className="mt-3 flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleAddTip}
-                  disabled={isSubmittingTip}
-                  className="rounded-full bg-[#1b140e] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#35281d] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isSubmittingTip ? "Submitting..." : "Submit"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsTipFormOpen(false);
-                    setTipDraft("");
-                    setTipRating(0);
-                    setTipError("");
-                  }}
-                  className="rounded-full border border-[#cdb79f] bg-white/70 px-4 py-2 text-sm font-medium text-[#4f3a28] transition hover:bg-white"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
+        <div className="sticky top-0 z-10 -mx-5 border-b border-white/10 bg-[#f6f1e8] px-5 pb-3">
+          <div className="flex items-center gap-8 text-base font-medium">
             <button
               type="button"
-              onClick={() => {
-                setIsTipFormOpen(true);
-                setTipError("");
-              }}
-              className="rounded-full border border-[#cdb79f] bg-white/70 px-4 py-2 text-sm font-medium text-[#4f3a28] transition hover:bg-white"
+              onClick={() => setActiveSection("overview")}
+              className={`relative pb-2 transition ${
+                activeSection === "overview" ? "text-[#8b6f4e]" : "text-[#7a654f]"
+              }`}
             >
-              + Add Review
+              Overview
+              {activeSection === "overview" ? (
+                <span className="absolute inset-x-0 -bottom-[13px] h-1 rounded-full bg-[#8b6f4e]" />
+              ) : null}
             </button>
-          )}
-        </section>
+            <button
+              type="button"
+              onClick={() => setActiveSection("reviews")}
+              className={`relative pb-2 transition ${
+                activeSection === "reviews" ? "text-[#8b6f4e]" : "text-[#7a654f]"
+              }`}
+            >
+              Reviews
+              {activeSection === "reviews" ? (
+                <span className="absolute inset-x-0 -bottom-[13px] h-1 rounded-full bg-[#8b6f4e]" />
+              ) : null}
+            </button>
+          </div>
+        </div>
+
+        {activeSection === "overview" ? (
+          <>
+            {overview ? (
+              <section className="space-y-2">
+                <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">Overview</h3>
+                <p className="text-sm leading-6 text-[#3f2f22]">{overview}</p>
+              </section>
+            ) : null}
+
+            <section className="space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">Menu</h3>
+              {menuItems.length ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {menuItems.map((item) => (
+                    <figure key={item.id} className="overflow-hidden rounded-2xl bg-[#ead7bc]">
+                      <img src={item.src} alt={item.alt || `${place.name} menu`} className="h-32 w-full object-cover" />
+                      {item.label ? <figcaption className="px-3 py-2 text-xs font-medium text-[#5c4631]">{item.label}</figcaption> : null}
+                    </figure>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-[#d5c7b6] px-4 py-5 text-sm text-[#7a654f]">
+                  <p>No menu yet</p>
+                  <p className="mt-1 text-[#93795d]">Be the first to add</p>
+                  <button
+                    type="button"
+                    onClick={() => menuInputRef.current?.click()}
+                    disabled={isUploadingMenu}
+                    className="mt-4 rounded-full border border-[#cdb79f] bg-white/70 px-4 py-2 text-sm font-medium text-[#4f3a28] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isUploadingMenu ? "Uploading..." : "+ Add Menu"}
+                  </button>
+                  {menuUploadError ? <p className="mt-3 text-sm text-[#b53f2d]">{menuUploadError}</p> : null}
+                </div>
+              )}
+            </section>
+
+            <section className="space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">Photos</h3>
+              {photoItems.length ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {photoItems.map((item) => (
+                    <figure key={item.id} className="overflow-hidden rounded-2xl bg-[#ead7bc]">
+                      <img src={item.src} alt={item.alt || `${place.name} photo`} className="h-36 w-full object-cover" />
+                      {item.label ? <figcaption className="px-3 py-2 text-xs font-medium text-[#5c4631]">{item.label}</figcaption> : null}
+                    </figure>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-[#d5c7b6] px-4 py-5 text-sm text-[#7a654f]">
+                  <p>No photos yet</p>
+                  <p className="mt-1 text-[#93795d]">Be the first to add</p>
+                  <button
+                    type="button"
+                    className="mt-4 rounded-full border border-[#cdb79f] bg-white/70 px-4 py-2 text-sm font-medium text-[#4f3a28] transition hover:bg-white"
+                  >
+                    + Add Photo
+                  </button>
+                </div>
+              )}
+            </section>
+          </>
+        ) : (
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">
+              {`Reviews (${reviewCount})`}
+            </h3>
+            {reviews.length ? (
+              <div className="rounded-2xl border border-[#d5c7b6] bg-white/55 px-4 py-4">
+                <ul className="space-y-2 text-sm leading-6 text-[#3f2f22]">
+                  {reviews.map((review, index) => (
+                    <li key={`${review.text}-${index}`} className="rounded-xl border border-[#e4d7c8] bg-[#fffaf2] px-3 py-3">
+                      <div className="mb-1 flex items-center justify-between gap-3">
+                        <span className="font-medium text-[#3f2f22]">{`Review ${index + 1}`}</span>
+                        <span className="text-sm font-semibold text-[#8b6f4e]">{`${review.rating.toFixed(1)} / 5`}</span>
+                      </div>
+                      <p>{review.text}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-[#d5c7b6] px-4 py-5 text-sm text-[#7a654f]">
+                <p>No reviews yet</p>
+                <p className="mt-1 text-[#93795d]">Be the first to share your experience</p>
+              </div>
+            )}
+
+            {isTipFormOpen ? (
+              <div className="rounded-2xl border border-[#d5c7b6] bg-white/55 p-4">
+                <div className="mb-3">
+                  <p className="mb-2 text-sm font-medium text-[#3f2f22]">Your rating</p>
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setTipRating(star)}
+                        className={`text-2xl transition ${star <= tipRating ? "text-amber-500" : "text-[#d5c7b6]"}`}
+                      >
+                        ★
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <textarea
+                  value={tipDraft}
+                  onChange={(event) => setTipDraft(event.target.value)}
+                  placeholder="Best dosa before 8 AM."
+                  rows={3}
+                  className="w-full rounded-xl border border-[#d5c7b6] bg-[#fdf9f2] px-3 py-3 text-sm text-[#1b140e] outline-none transition placeholder:text-[#9c8263] focus:border-[#b79975]"
+                />
+                {tipError ? <p className="mt-2 text-sm text-[#b53f2d]">{tipError}</p> : null}
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAddTip}
+                    disabled={isSubmittingTip}
+                    className="rounded-full bg-[#1b140e] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#35281d] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSubmittingTip ? "Submitting..." : "Submit"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsTipFormOpen(false);
+                      setTipDraft("");
+                      setTipRating(0);
+                      setTipError("");
+                    }}
+                    className="rounded-full border border-[#cdb79f] bg-white/70 px-4 py-2 text-sm font-medium text-[#4f3a28] transition hover:bg-white"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsTipFormOpen(true);
+                  setTipError("");
+                }}
+                className="rounded-full border border-[#cdb79f] bg-white/70 px-4 py-2 text-sm font-medium text-[#4f3a28] transition hover:bg-white"
+              >
+                + Add Review
+              </button>
+            )}
+          </section>
+        )}
 
         {place.tags?.length ? (
           <section className="space-y-3">
@@ -459,6 +571,14 @@ export default function PlacePopup({
             </div>
           </section>
         ) : null}
+        <input
+          ref={menuInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={handleMenuFilesSelected}
+        />
       </div>
     </div>
   );

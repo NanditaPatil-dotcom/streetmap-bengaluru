@@ -1,5 +1,13 @@
 import mongoose from "mongoose";
 
+const ReviewVoteEntrySchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true },
+    direction: { type: String, enum: ["up", "down"], required: true },
+  },
+  { _id: false }
+);
+
 const ReviewSchema = new mongoose.Schema(
   {
     text: {
@@ -18,12 +26,26 @@ const ReviewSchema = new mongoose.Schema(
       min: 1,
       max: 5,
     },
+    upvotes: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    downvotes: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    reviewVotes: {
+      type: [ReviewVoteEntrySchema],
+      default: [],
+    },
     createdAt: {
       type: Date,
       default: Date.now,
     },
   },
-  { _id: false }
+  { _id: true }
 );
 
 const PlaceSchema = new mongoose.Schema({

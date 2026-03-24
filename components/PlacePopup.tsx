@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useSession } from "next-auth/react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 type PlaceMedia =
@@ -12,6 +13,17 @@ type PlaceMedia =
       label?: string;
       title?: string;
     };
+
+type Review = {
+  _id?: string;
+  text: string;
+  author?: string;
+  rating: number;
+  upvotes?: number;
+  downvotes?: number;
+  myVote?: "up" | "down" | null;
+  createdAt?: string;
+};
 
 type PlacePopupProps = {
   place: {
@@ -31,18 +43,8 @@ type PlacePopupProps = {
     photos?: PlaceMedia[];
     menu?: PlaceMedia[];
     menuImages?: PlaceMedia[];
-    creatorReview?: {
-      text: string;
-      author?: string;
-      rating: number;
-      createdAt?: string;
-    } | null;
-    reviews?: Array<{
-      text: string;
-      author?: string;
-      rating: number;
-      createdAt?: string;
-    }>;
+    creatorReview?: Review | null;
+    reviews?: Review[];
     reviewCount?: number;
   };
   onMouseEnter?: () => void;
@@ -54,8 +56,8 @@ type PlacePopupProps = {
     rating?: number;
     photos?: PlaceMedia[];
     menuImages?: PlaceMedia[];
-    creatorReview?: { text: string; author?: string; rating: number; createdAt?: string } | null;
-    reviews?: Array<{ text: string; author?: string; rating: number; createdAt?: string }>;
+    creatorReview?: Review | null;
+    reviews?: Review[];
   }) => void;
 };
 
@@ -86,9 +88,7 @@ const normalizeMedia = (items?: PlaceMedia[]) =>
     })
     .filter((item): item is { id: string; src: string; alt: string; label: string } => Boolean(item));
 
-const averageRatingFromReviews = (
-  reviews: Array<{ text: string; author?: string; rating: number; createdAt?: string }>
-) => {
+const averageRatingFromReviews = (reviews: Review[]) => {
   if (!reviews.length) {
     return null;
   }
@@ -108,8 +108,8 @@ const buildVisibleReviews = ({
   creatorReview,
   reviews,
 }: {
-  creatorReview?: { text: string; author?: string; rating: number; createdAt?: string } | null;
-  reviews?: Array<{ text: string; author?: string; rating: number; createdAt?: string }>;
+  creatorReview?: Review | null;
+  reviews?: Review[];
 }) => {
   const normalizedReviews = Array.isArray(reviews) ? reviews : [];
 
@@ -155,6 +155,20 @@ const formatAddedAt = (value?: string) => {
   }).format(parsedValue);
 };
 
+const voteRowKey = (review: Review, index: number) => {
+  const id = review._id;
+  if (id !== undefined && id !== null && String(id).length > 0) {
+    return String(id);
+  }
+  return `row:${index}`;
+};
+
+const isClientReview = (review: unknown): review is Review =>
+  Boolean(review) &&
+  typeof review === "object" &&
+  typeof (review as { text?: unknown }).text === "string" &&
+  typeof (review as { rating?: unknown }).rating === "number";
+
 export default function PlacePopup({
   place,
   onMouseEnter,
@@ -163,6 +177,7 @@ export default function PlacePopup({
   variant = "card",
   onPlaceUpdated,
 }: PlacePopupProps) {
+  const { data: session } = useSession();
   const [reviews, setReviews] = useState(buildVisibleReviews(place));
   const [activeSection, setActiveSection] = useState<"overview" | "reviews">("overview");
   const [menuUploads, setMenuUploads] = useState<PlaceMedia[]>(place.menuImages ?? place.menu ?? []);
@@ -176,16 +191,25 @@ export default function PlacePopup({
   const [tipRating, setTipRating] = useState(0);
   const [isTipFormOpen, setIsTipFormOpen] = useState(false);
   const [isSubmittingTip, setIsSubmittingTip] = useState(false);
+  const [voteLoadingKey, setVoteLoadingKey] = useState<string | null>(null);
+  const [voteError, setVoteError] = useState("");
   const [tipError, setTipError] = useState("");
   const menuInputRef = useRef<HTMLInputElement | null>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const prevPlaceIdRef = useRef<string | undefined>(undefined);
+  const voteGlobalInFlightRef = useRef(false);
 
   useEffect(() => {
     setReviews(buildVisibleReviews(place));
     setMenuUploads(place.menuImages ?? place.menu ?? []);
     setPhotoUploads(place.photos ?? place.images ?? []);
-    setActiveSection("overview");
-    setIsPhotoGalleryOpen(false);
+    const nextKey = place._id ?? "";
+    const prevKey = prevPlaceIdRef.current ?? "";
+    if (nextKey !== prevKey) {
+      prevPlaceIdRef.current = nextKey;
+      setActiveSection("overview");
+      setIsPhotoGalleryOpen(false);
+    }
   }, [place]);
 
   const displayedRating = averageRatingFromReviews(reviews) ?? place.rating ?? null;
@@ -416,15 +440,7 @@ export default function PlacePopup({
       const savedPlace = data.place && typeof data.place === "object" ? data.place : null;
 
       const nextReviews = Array.isArray(savedPlace?.reviews)
-        ? savedPlace.reviews.filter(
-            (
-              review: unknown
-            ): review is { text: string; author?: string; rating: number; createdAt?: string } =>
-              Boolean(review) &&
-              typeof review === "object" &&
-              typeof (review as { text?: unknown }).text === "string" &&
-              typeof (review as { rating?: unknown }).rating === "number"
-          )
+        ? savedPlace.reviews.filter(isClientReview)
         : [];
       const creatorReview =
         savedPlace?.creatorReview &&
@@ -450,6 +466,73 @@ export default function PlacePopup({
       setTipError(error instanceof Error ? error.message : "Failed to add tip.");
     } finally {
       setIsSubmittingTip(false);
+    }
+  };
+
+  const handleVote = async (review: Review, rowKey: string, voteType: "upvote" | "downvote") => {
+    if (!place._id) {
+      return;
+    }
+
+    if (!session?.user?.id) {
+      setVoteError("Sign in to vote.");
+      return;
+    }
+
+    if (voteGlobalInFlightRef.current) {
+      return;
+    }
+    voteGlobalInFlightRef.current = true;
+
+    setVoteLoadingKey(rowKey);
+    setVoteError("");
+
+    try {
+      const response = await fetch("/api/reviewVote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          placeId: place._id,
+          reviewId: review._id ? String(review._id) : "",
+          voteType,
+          reviewText: review.text,
+          reviewRating: review.rating,
+          reviewAuthor: review.author ?? "",
+          reviewCreatedAt: review.createdAt ?? "",
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof data.error === "string" ? data.error : "Failed to update vote.");
+      }
+
+      const savedPlace = data.place && typeof data.place === "object" ? data.place : null;
+      const nextReviews = Array.isArray(savedPlace?.reviews)
+        ? savedPlace.reviews.filter(isClientReview)
+        : [];
+      const creatorReview =
+        savedPlace?.creatorReview &&
+        typeof savedPlace.creatorReview.text === "string" &&
+        typeof savedPlace.creatorReview.rating === "number"
+          ? savedPlace.creatorReview
+          : place.creatorReview ?? null;
+      const visibleReviews = buildVisibleReviews({
+        creatorReview,
+        reviews: nextReviews,
+      });
+
+      setReviews(visibleReviews);
+      onPlaceUpdated?.({
+        _id: typeof savedPlace?._id === "string" ? savedPlace._id : place._id,
+        creatorReview,
+        reviews: nextReviews,
+      });
+    } catch (error) {
+      setVoteError(error instanceof Error ? error.message : "Failed to update vote.");
+    } finally {
+      voteGlobalInFlightRef.current = false;
+      setVoteLoadingKey(null);
     }
   };
 
@@ -665,11 +748,18 @@ export default function PlacePopup({
             <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">
               {`Reviews (${reviewCount})`}
             </h3>
+            {voteError ? <p className="text-sm text-[#b53f2d]">{voteError}</p> : null}
+            {!session?.user?.id ? (
+              <p className="text-xs text-[#93795d]">Sign in to vote on reviews.</p>
+            ) : null}
             {reviews.length ? (
               <div className="rounded-2xl border border-[#d5c7b6] bg-white/55 px-4 py-4">
                 <ul className="space-y-2 text-sm leading-6 text-[#3f2f22]">
                   {reviews.map((review, index) => (
-                    <li key={`${review.text}-${index}`} className="rounded-xl border border-[#e4d7c8] bg-[#fffaf2] px-3 py-3">
+                    <li
+                      key={review._id ?? `${review.text}-${index}`}
+                      className="rounded-xl border border-[#e4d7c8] bg-[#fffaf2] px-3 py-3"
+                    >
                       <div className="mb-1 flex items-center justify-between gap-3">
                         <div>
                           <span className="font-medium text-[#3f2f22]">
@@ -686,6 +776,62 @@ export default function PlacePopup({
                         <span className="text-sm font-semibold text-[#8b6f4e]">{`${review.rating.toFixed(1)} / 5`}</span>
                       </div>
                       <p>{review.text}</p>
+                      <div className="mt-3 flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={!session?.user?.id || voteLoadingKey !== null}
+                          onClick={() => handleVote(review, voteRowKey(review, index), "upvote")}
+                          className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                            review.myVote === "up"
+                              ? "border-[#8b6f4e] bg-[#ead7bc] text-[#35281d]"
+                              : "border-[#cdb79f] bg-white/70 text-[#4f3a28] hover:bg-white"
+                          }`}
+                          aria-label="Upvote review"
+                          aria-pressed={review.myVote === "up"}
+                        >
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            className="h-3.5 w-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M12 19V5" />
+                            <path d="m6 11 6-6 6 6" />
+                          </svg>
+                          <span>{typeof review.upvotes === "number" ? review.upvotes : 0}</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!session?.user?.id || voteLoadingKey !== null}
+                          onClick={() => handleVote(review, voteRowKey(review, index), "downvote")}
+                          className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                            review.myVote === "down"
+                              ? "border-[#8b6f4e] bg-[#ead7bc] text-[#35281d]"
+                              : "border-[#cdb79f] bg-white/70 text-[#4f3a28] hover:bg-white"
+                          }`}
+                          aria-label="Downvote review"
+                          aria-pressed={review.myVote === "down"}
+                        >
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            className="h-3.5 w-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M12 5v14" />
+                            <path d="m6 13 6 6 6-6" />
+                          </svg>
+                          <span>{typeof review.downvotes === "number" ? review.downvotes : 0}</span>
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>

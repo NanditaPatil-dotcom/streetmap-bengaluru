@@ -1,6 +1,7 @@
 import connectDB from "@/lib/mongodb";
 import Place from "@/models/Place";
 import { authOptions } from "@/lib/auth";
+import { sanitizePlaceForClient } from "@/lib/sanitizePlaceForClient";
 import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -14,6 +15,9 @@ const DEFAULT_CATEGORY_TAGS: Record<string, string[]> = {
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
+
+    const session = await getServerSession(authOptions);
+    const viewerId = session?.user?.id ?? null;
 
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
@@ -81,7 +85,7 @@ export async function GET(req: NextRequest) {
 
     const places = await Place.find(query).lean();
 
-    return NextResponse.json(places);
+    return NextResponse.json(places.map((item) => sanitizePlaceForClient(item, viewerId)));
   } catch (error) {
     console.error("Failed to fetch places", error);
     return NextResponse.json(
@@ -130,7 +134,7 @@ export async function POST(req: Request) {
           await existing.save();
         }
 
-        return NextResponse.json(existing);
+        return NextResponse.json(sanitizePlaceForClient(existing.toObject(), session?.user?.id ?? null));
       }
     }
 
@@ -151,7 +155,7 @@ export async function POST(req: Request) {
       osmId: body.osmId || null,
     });
 
-    return NextResponse.json(place, { status: 201 });
+    return NextResponse.json(sanitizePlaceForClient(place.toObject(), session?.user?.id ?? null), { status: 201 });
   } catch (error) {
     console.error("Failed to save place", error);
 

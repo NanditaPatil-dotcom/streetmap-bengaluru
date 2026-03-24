@@ -1,6 +1,7 @@
 import connectDB from "@/lib/mongodb";
 import Place from "@/models/Place";
 import { authOptions } from "@/lib/auth";
+import { sanitizePlaceForClient } from "@/lib/sanitizePlaceForClient";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
@@ -104,7 +105,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({
-      place: savedPlace,
+      place: sanitizePlaceForClient(savedPlace, session?.user?.id ?? null),
     });
   } catch (error) {
     console.error("Failed to add tip", error);

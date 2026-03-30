@@ -10,6 +10,11 @@ const ReviewVoteEntrySchema = new mongoose.Schema(
 
 const ReviewSchema = new mongoose.Schema(
   {
+    userId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     text: {
       type: String,
       required: true,
@@ -48,6 +53,31 @@ const ReviewSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const MediaSchema = new mongoose.Schema(
+  {
+    url: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    author: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    userId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: true }
+);
+
 const PlaceSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -56,8 +86,12 @@ const PlaceSchema = new mongoose.Schema({
 
   category: {
     type: String,
-    enum: ["cafe", "food", "malls", "park", "metro", "bmtc", "restaurant", "place"],
-    required: true
+    required: true,
+    trim: true,
+    lowercase: true,
+    minlength: 2,
+    maxlength: 40,
+    match: /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
   },
 
   location: {
@@ -82,17 +116,9 @@ const PlaceSchema = new mongoose.Schema({
     }
   ],
 
-  menuImages: [
-    {
-      type: String
-    }
-  ],
+  menuImages: [MediaSchema],
 
-  photos: [
-    {
-      type: String
-    }
-  ],
+  photos: [MediaSchema],
 
   reviews: [ReviewSchema],
 

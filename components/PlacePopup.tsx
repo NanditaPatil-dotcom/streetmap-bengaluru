@@ -7,15 +7,20 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react";
 type PlaceMedia =
   | string
   | {
+      _id?: string;
       url?: string;
       src?: string;
       alt?: string;
       label?: string;
       title?: string;
+      author?: string;
+      userId?: string;
+      createdAt?: string;
     };
 
 type Review = {
   _id?: string;
+  userId?: string;
   text: string;
   author?: string;
   rating: number;
@@ -50,6 +55,7 @@ type PlacePopupProps = {
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   onClose?: () => void;
+  onOpenDetails?: () => void;
   variant?: "card" | "sidebar";
   onPlaceUpdated?: (place: {
     _id?: string;
@@ -67,9 +73,13 @@ const normalizeMedia = (items?: PlaceMedia[]) =>
       if (typeof item === "string") {
         return {
           id: `${item}-${index}`,
+          mediaId: "",
           src: item,
           alt: "",
           label: "",
+          author: "",
+          userId: "",
+          createdAt: "",
         };
       }
 
@@ -80,13 +90,17 @@ const normalizeMedia = (items?: PlaceMedia[]) =>
       }
 
       return {
-        id: `${src}-${index}`,
+        id: item._id ?? `${src}-${index}`,
+        mediaId: item._id ?? "",
         src,
         alt: item.alt ?? item.title ?? "",
         label: item.label ?? item.title ?? "",
+        author: item.author ?? "",
+        userId: item.userId ?? "",
+        createdAt: item.createdAt ?? "",
       };
     })
-    .filter((item): item is { id: string; src: string; alt: string; label: string } => Boolean(item));
+    .filter((item): item is { id: string; mediaId: string; src: string; alt: string; label: string; author: string; userId: string; createdAt: string } => Boolean(item));
 
 const averageRatingFromReviews = (reviews: Review[]) => {
   if (!reviews.length) {
@@ -112,11 +126,16 @@ const buildVisibleReviews = ({
   reviews?: Review[];
 }) => {
   const normalizedReviews = Array.isArray(reviews) ? reviews : [];
+  const creatorReviewKey = creatorReview
+    ? `${creatorReview._id ?? ""}:${creatorReview.userId ?? ""}:${creatorReview.author ?? ""}:${creatorReview.text}:${creatorReview.rating}:${creatorReview.createdAt ?? ""}`
+    : "";
 
   if (
     creatorReview &&
     !normalizedReviews.some(
-      (review) => review.text === creatorReview.text && review.rating === creatorReview.rating
+      (review) =>
+        `${review._id ?? ""}:${review.userId ?? ""}:${review.author ?? ""}:${review.text}:${review.rating}:${review.createdAt ?? ""}` ===
+        creatorReviewKey
     )
   ) {
     return [creatorReview, ...normalizedReviews];
@@ -169,15 +188,36 @@ const isClientReview = (review: unknown): review is Review =>
   typeof (review as { text?: unknown }).text === "string" &&
   typeof (review as { rating?: unknown }).rating === "number";
 
+const canManageByOwnership = ({
+  itemUserId,
+  itemAuthor,
+  currentUserId,
+  currentUserName,
+}: {
+  itemUserId?: string;
+  itemAuthor?: string;
+  currentUserId?: string;
+  currentUserName?: string;
+}) => {
+  if (currentUserId && itemUserId && currentUserId === itemUserId) {
+    return true;
+  }
+
+  return !itemUserId && Boolean(currentUserName) && displayUserName(itemAuthor) === currentUserName;
+};
+
 export default function PlacePopup({
   place,
   onMouseEnter,
   onMouseLeave,
   onClose,
+  onOpenDetails,
   variant = "card",
   onPlaceUpdated,
 }: PlacePopupProps) {
   const { data: session } = useSession();
+  const currentUserId = session?.user?.id ?? "";
+  const currentUserName = displayUserName(session?.user?.name);
   const [reviews, setReviews] = useState(buildVisibleReviews(place));
   const [activeSection, setActiveSection] = useState<"overview" | "reviews">("overview");
   const [menuUploads, setMenuUploads] = useState<PlaceMedia[]>(place.menuImages ?? place.menu ?? []);
@@ -192,8 +232,12 @@ export default function PlacePopup({
   const [isTipFormOpen, setIsTipFormOpen] = useState(false);
   const [isSubmittingTip, setIsSubmittingTip] = useState(false);
   const [voteLoadingKey, setVoteLoadingKey] = useState<string | null>(null);
+  const [deleteReviewKey, setDeleteReviewKey] = useState<string | null>(null);
+  const [deletePhotoKey, setDeletePhotoKey] = useState<string | null>(null);
+  const [deleteMenuKey, setDeleteMenuKey] = useState<string | null>(null);
   const [voteError, setVoteError] = useState("");
   const [tipError, setTipError] = useState("");
+  const [deleteError, setDeleteError] = useState("");
   const menuInputRef = useRef<HTMLInputElement | null>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const prevPlaceIdRef = useRef<string | undefined>(undefined);
@@ -216,7 +260,13 @@ export default function PlacePopup({
 
   if (variant === "card") {
     return (
-      <div className="min-w-[220px] space-y-2 text-black" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+      <button
+        type="button"
+        onClick={onOpenDetails}
+        className="min-w-[220px] space-y-2 text-left text-black transition hover:opacity-90"
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      >
         <div>
           <h3 className="text-lg font-bold">{place.name}</h3>
           <p className="text-sm text-gray-600">
@@ -249,7 +299,8 @@ export default function PlacePopup({
             ))}
           </div>
         ) : null}
-      </div>
+        <p className="text-xs font-medium text-[#8b6f4e]">Click to open full place details</p>
+      </button>
     );
   }
 
@@ -258,7 +309,7 @@ export default function PlacePopup({
   const menuItems = normalizeMedia(menuUploads);
   const overview = place.overview ?? place.description;
   const reviewCount = reviews.length;
-  const supportsMenu = ["cafe", "food"].includes(place.category.trim().toLowerCase());
+  const supportsMenu = ["cafe", "restaurant", "street-food", "bakery", "dessert", "study-cafe"].includes(place.category.trim().toLowerCase());
   const addedByName = displayUserName(place.addedBy);
   const addedAt = formatAddedAt(place.createdAt);
   const creatorReviewAuthor = displayUserName(place.creatorReview?.author) || addedByName;
@@ -266,6 +317,12 @@ export default function PlacePopup({
   const handleMenuFilesSelected = async (event: ChangeEvent<HTMLInputElement>) => {
     const fileList = event.target.files;
     const files = fileList ? Array.from(fileList).filter((file) => file.type.startsWith("image/")) : [];
+
+    if (!currentUserId) {
+      setMenuUploadError("Sign in to add menu images.");
+      event.target.value = "";
+      return;
+    }
 
     if (!place._id) {
       setMenuUploadError("This place cannot accept menu uploads yet.");
@@ -316,7 +373,7 @@ export default function PlacePopup({
 
       const savedPlace = data.place && typeof data.place === "object" ? data.place : null;
       const nextMenuImages = Array.isArray(savedPlace?.menuImages)
-        ? savedPlace.menuImages.filter((image: unknown): image is string => typeof image === "string")
+        ? (savedPlace.menuImages as PlaceMedia[])
         : [];
 
       setMenuUploads(nextMenuImages);
@@ -335,6 +392,12 @@ export default function PlacePopup({
   const handlePhotoFilesSelected = async (event: ChangeEvent<HTMLInputElement>) => {
     const fileList = event.target.files;
     const files = fileList ? Array.from(fileList).filter((file) => file.type.startsWith("image/")) : [];
+
+    if (!currentUserId) {
+      setPhotoUploadError("Sign in to add photos.");
+      event.target.value = "";
+      return;
+    }
 
     if (!place._id) {
       setPhotoUploadError("This place cannot accept photo uploads yet.");
@@ -385,7 +448,7 @@ export default function PlacePopup({
 
       const savedPlace = data.place && typeof data.place === "object" ? data.place : null;
       const nextPhotos = Array.isArray(savedPlace?.photos)
-        ? savedPlace.photos.filter((image: unknown): image is string => typeof image === "string")
+        ? (savedPlace.photos as PlaceMedia[])
         : [];
 
       setPhotoUploads(nextPhotos);
@@ -402,6 +465,11 @@ export default function PlacePopup({
   };
 
   const handleAddTip = async () => {
+    if (!currentUserId) {
+      setTipError("Sign in to add a review.");
+      return;
+    }
+
     if (!place._id) {
       setTipError("This place cannot accept tips yet.");
       return;
@@ -466,6 +534,119 @@ export default function PlacePopup({
       setTipError(error instanceof Error ? error.message : "Failed to add tip.");
     } finally {
       setIsSubmittingTip(false);
+    }
+  };
+
+  const handleDeleteReview = async (review: Review, rowKey: string) => {
+    if (!place._id || !review._id) {
+      return;
+    }
+
+    setDeleteReviewKey(rowKey);
+    setDeleteError("");
+
+    try {
+      const response = await fetch("/api/deleteReview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          placeId: place._id,
+          reviewId: review._id,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof data.error === "string" ? data.error : "Failed to delete review.");
+      }
+
+      const savedPlace = data.place && typeof data.place === "object" ? data.place : null;
+      const nextReviews = Array.isArray(savedPlace?.reviews)
+        ? savedPlace.reviews.filter(isClientReview)
+        : [];
+      const creatorReview =
+        savedPlace?.creatorReview &&
+        typeof savedPlace.creatorReview.text === "string" &&
+        typeof savedPlace.creatorReview.rating === "number"
+          ? savedPlace.creatorReview
+          : null;
+
+      const visibleReviews = buildVisibleReviews({
+        creatorReview,
+        reviews: nextReviews,
+      });
+
+      setReviews(visibleReviews);
+      onPlaceUpdated?.({
+        _id: typeof savedPlace?._id === "string" ? savedPlace._id : place._id,
+        rating: typeof savedPlace?.rating === "number" ? savedPlace.rating : place.rating,
+        creatorReview,
+        reviews: nextReviews,
+      });
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Failed to delete review.");
+    } finally {
+      setDeleteReviewKey(null);
+    }
+  };
+
+  const handleDeleteMedia = async ({
+    type,
+    mediaId,
+  }: {
+    type: "photo" | "menu";
+    mediaId: string;
+  }) => {
+    if (!place._id || !mediaId) {
+      return;
+    }
+
+    if (type === "photo") {
+      setDeletePhotoKey(mediaId);
+    } else {
+      setDeleteMenuKey(mediaId);
+    }
+    setDeleteError("");
+
+    try {
+      const response = await fetch(type === "photo" ? "/api/deletePhoto" : "/api/deleteMenu", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          placeId: place._id,
+          mediaId,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof data.error === "string"
+            ? data.error
+            : `Failed to delete ${type === "photo" ? "photo" : "menu image"}.`
+        );
+      }
+
+      const savedPlace = data.place && typeof data.place === "object" ? data.place : null;
+      const nextPhotos = Array.isArray(savedPlace?.photos) ? (savedPlace.photos as PlaceMedia[]) : [];
+      const nextMenuImages = Array.isArray(savedPlace?.menuImages) ? (savedPlace.menuImages as PlaceMedia[]) : [];
+
+      setPhotoUploads(nextPhotos);
+      setMenuUploads(nextMenuImages);
+      onPlaceUpdated?.({
+        _id: typeof savedPlace?._id === "string" ? savedPlace._id : place._id,
+        photos: nextPhotos,
+        menuImages: nextMenuImages,
+      });
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error
+          ? error.message
+          : `Failed to delete ${type === "photo" ? "photo" : "menu image"}.`
+      );
+    } finally {
+      setDeletePhotoKey(null);
+      setDeleteMenuKey(null);
     }
   };
 
@@ -581,6 +762,11 @@ export default function PlacePopup({
       </div>
 
       <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
+        {deleteError ? (
+          <p className="rounded-2xl border border-[#e3b4ad] bg-[#fff3f1] px-4 py-3 text-sm text-[#b53f2d]">
+            {deleteError}
+          </p>
+        ) : null}
         <div className="sticky top-0 z-10 -mx-5 border-b border-white/10 bg-[#f6f1e8] px-5 pb-3">
           <div className="flex items-center gap-8 text-base font-medium">
             <button
@@ -630,12 +816,30 @@ export default function PlacePopup({
                 <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">Menu</h3>
                 {menuItems.length ? (
                   <div className="grid grid-cols-2 gap-3">
-                    {menuItems.map((item) => (
-                      <figure key={item.id} className="overflow-hidden rounded-2xl bg-[#ead7bc]">
+                    {menuItems.map((item) => {
+                      const canDeleteMenuImage = canManageByOwnership({
+                        itemUserId: item.userId,
+                        itemAuthor: item.author,
+                        currentUserId,
+                        currentUserName,
+                      });
+
+                      return (
+                      <figure key={item.id} className="relative overflow-hidden rounded-2xl bg-[#ead7bc]">
                         <Image src={item.src} alt={item.alt || `${place.name} menu`} width={300} height={128} className="h-32 w-full object-cover" />
+                        {canDeleteMenuImage && item.mediaId ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMedia({ type: "menu", mediaId: item.mediaId })}
+                            disabled={deleteMenuKey === item.mediaId}
+                            className="absolute right-2 top-2 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-black/70 disabled:opacity-60"
+                          >
+                            {deleteMenuKey === item.mediaId ? "Deleting..." : "Delete"}
+                          </button>
+                        ) : null}
                         {item.label ? <figcaption className="px-3 py-2 text-xs font-medium text-[#5c4631]">{item.label}</figcaption> : null}
                       </figure>
-                    ))}
+                    )})}
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-[#d5c7b6] px-4 py-5 text-sm text-[#7a654f]">
@@ -650,6 +854,7 @@ export default function PlacePopup({
                       {isUploadingMenu ? "Uploading..." : "+ Add Menu"}
                     </button>
                     {menuUploadError ? <p className="mt-3 text-sm text-[#b53f2d]">{menuUploadError}</p> : null}
+                    {!currentUserId ? <p className="mt-3 text-xs text-[#93795d]">Sign in to add or delete menu images.</p> : null}
                   </div>
                 )}
               </section>
@@ -661,28 +866,51 @@ export default function PlacePopup({
                 <>
                   <div className="-mx-5 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <div className="flex w-max gap-3">
-                      {visiblePhotoItems.map((item, index) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => setIsPhotoGalleryOpen(true)}
-                          className={`group relative shrink-0 overflow-hidden rounded-[28px] bg-[#ead7bc] text-left ${
-                            index === 0 ? "h-72 w-[18.5rem]" : "h-72 w-[11.5rem]"
-                          }`}
-                        >
-                          <Image
-                            src={item.src}
-                            alt={item.alt || `${place.name} photo`}
-                            fill
-                            className="object-cover transition duration-300 group-hover:scale-[1.02]"
-                          />
-                          {item.label ? (
-                            <span className="absolute inset-x-3 bottom-3 rounded-full bg-black/45 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                              {item.label}
-                            </span>
-                          ) : null}
-                        </button>
-                      ))}
+                      {visiblePhotoItems.map((item, index) => {
+                        const canDeletePhoto = canManageByOwnership({
+                          itemUserId: item.userId,
+                          itemAuthor: item.author,
+                          currentUserId,
+                          currentUserName,
+                        });
+
+                        return (
+                          <div
+                            key={item.id}
+                            className={`group relative shrink-0 overflow-hidden rounded-[28px] bg-[#ead7bc] ${
+                              index === 0 ? "h-72 w-[18.5rem]" : "h-72 w-[11.5rem]"
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setIsPhotoGalleryOpen(true)}
+                              className="relative h-full w-full text-left"
+                            >
+                              <Image
+                                src={item.src}
+                                alt={item.alt || `${place.name} photo`}
+                                fill
+                                className="object-cover transition duration-300 group-hover:scale-[1.02]"
+                              />
+                              {item.label ? (
+                                <span className="absolute inset-x-3 bottom-3 rounded-full bg-black/45 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                                  {item.label}
+                                </span>
+                              ) : null}
+                            </button>
+                            {canDeletePhoto && item.mediaId ? (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMedia({ type: "photo", mediaId: item.mediaId })}
+                                disabled={deletePhotoKey === item.mediaId}
+                                className="absolute right-3 top-3 z-10 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-black/70 disabled:opacity-60"
+                              >
+                                {deletePhotoKey === item.mediaId ? "Deleting..." : "Delete"}
+                              </button>
+                            ) : null}
+                          </div>
+                        );
+                      })}
 
                       <div className="grid h-72 w-[11.5rem] shrink-0 grid-rows-2 gap-3">
                         <button
@@ -725,6 +953,7 @@ export default function PlacePopup({
                     </div>
                   </div>
                   {photoUploadError ? <p className="text-sm text-[#b53f2d]">{photoUploadError}</p> : null}
+                  {!currentUserId ? <p className="text-xs text-[#93795d]">Sign in to add or delete photos.</p> : null}
                 </>
               ) : (
                 <div className="rounded-2xl border border-dashed border-[#d5c7b6] px-4 py-5 text-sm text-[#7a654f]">
@@ -739,6 +968,7 @@ export default function PlacePopup({
                     {isUploadingPhotos ? "Uploading..." : "+ Add Photo"}
                   </button>
                   {photoUploadError ? <p className="mt-3 text-sm text-[#b53f2d]">{photoUploadError}</p> : null}
+                  {!currentUserId ? <p className="mt-3 text-xs text-[#93795d]">Sign in to add or delete photos.</p> : null}
                 </div>
               )}
             </section>
@@ -773,7 +1003,24 @@ export default function PlacePopup({
                             <p className="text-xs text-[#93795d]">{formatAddedAt(review.createdAt)}</p>
                           ) : null}
                         </div>
-                        <span className="text-sm font-semibold text-[#8b6f4e]">{`${review.rating.toFixed(1)} / 5`}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-[#8b6f4e]">{`${review.rating.toFixed(1)} / 5`}</span>
+                          {review._id && canManageByOwnership({
+                            itemUserId: review.userId,
+                            itemAuthor: review.author,
+                            currentUserId,
+                            currentUserName,
+                          }) ? (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteReview(review, voteRowKey(review, index))}
+                              disabled={deleteReviewKey === voteRowKey(review, index)}
+                              className="rounded-full border border-[#cdb79f] bg-white/80 px-2.5 py-1 text-[11px] font-medium text-[#4f3a28] transition hover:bg-white disabled:opacity-60"
+                            >
+                              {deleteReviewKey === voteRowKey(review, index) ? "Deleting..." : "Delete"}
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
                       <p>{review.text}</p>
                       <div className="mt-3 flex items-center gap-2">
@@ -892,16 +1139,21 @@ export default function PlacePopup({
                 </div>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setIsTipFormOpen(true);
-                  setTipError("");
-                }}
-                className="rounded-full border border-[#cdb79f] bg-white/70 px-4 py-2 text-sm font-medium text-[#4f3a28] transition hover:bg-white"
-              >
-                + Add Review
-              </button>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsTipFormOpen(true);
+                    setTipError("");
+                  }}
+                  className="rounded-full border border-[#cdb79f] bg-white/70 px-4 py-2 text-sm font-medium text-[#4f3a28] transition hover:bg-white"
+                >
+                  + Add Review
+                </button>
+                {!currentUserId ? (
+                  <p className="text-xs text-[#93795d]">Sign in to add or delete reviews.</p>
+                ) : null}
+              </div>
             )}
           </section>
         )}
@@ -939,11 +1191,30 @@ export default function PlacePopup({
             </button>
           </div>
           <div className="grid flex-1 grid-cols-2 content-start gap-3 overflow-y-auto px-5 py-5 sm:grid-cols-3">
-            {photoItems.map((item) => (
-              <figure key={`gallery-${item.id}`} className="aspect-square overflow-hidden rounded-2xl bg-white/10">
-                <Image src={item.src} alt={item.alt || `${place.name} photo`} fill className="object-cover" />
-              </figure>
-            ))}
+            {photoItems.map((item) => {
+              const canDeletePhoto = canManageByOwnership({
+                itemUserId: item.userId,
+                itemAuthor: item.author,
+                currentUserId,
+                currentUserName,
+              });
+
+              return (
+                <figure key={`gallery-${item.id}`} className="relative aspect-square overflow-hidden rounded-2xl bg-white/10">
+                  <Image src={item.src} alt={item.alt || `${place.name} photo`} fill className="object-cover" />
+                  {canDeletePhoto && item.mediaId ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteMedia({ type: "photo", mediaId: item.mediaId })}
+                      disabled={deletePhotoKey === item.mediaId}
+                      className="absolute right-2 top-2 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-black/70 disabled:opacity-60"
+                    >
+                      {deletePhotoKey === item.mediaId ? "Deleting..." : "Delete"}
+                    </button>
+                  ) : null}
+                </figure>
+              );
+            })}
           </div>
         </div>
       ) : null}

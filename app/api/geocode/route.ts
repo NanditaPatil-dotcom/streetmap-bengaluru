@@ -5,6 +5,7 @@ type NominatimResult = {
   display_name: string;
   lat: string;
   lon: string;
+  boundingbox?: [string, string, string, string];
   type?: string;
   class?: string;
   addresstype?: string;

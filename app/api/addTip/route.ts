@@ -40,11 +40,16 @@ export async function POST(req: Request) {
     await connectDB();
 
     const session = await getServerSession(authOptions);
+    const userId = session?.user?.id ?? "";
     const body = await req.json();
     const placeId = typeof body.placeId === "string" ? body.placeId.trim() : "";
     const tip = typeof body.tip === "string" ? body.tip.trim() : "";
     const rating = typeof body.rating === "number" ? body.rating : Number(body.rating);
     const reviewAuthor = session?.user?.name?.trim()?.split(" ")[0] || "Explorer";
+
+    if (!userId) {
+      return NextResponse.json({ error: "Sign in to add a review." }, { status: 401 });
+    }
 
     if (!placeId) {
       return NextResponse.json({ error: "placeId is required." }, { status: 400 });
@@ -72,6 +77,7 @@ export async function POST(req: Request) {
       updatedPlace.description.trim()
     ) {
       updatedPlace.creatorReview = {
+        userId: "",
         text: updatedPlace.description.trim(),
         author: updatedPlace.addedBy || "Explorer",
         rating: updatedPlace.rating,
@@ -82,6 +88,7 @@ export async function POST(req: Request) {
     updatedPlace.reviews = normalizeReviews(updatedPlace.creatorReview, updatedPlace.reviews);
 
     updatedPlace.reviews.push({
+      userId,
       text: tip,
       author: reviewAuthor,
       rating,

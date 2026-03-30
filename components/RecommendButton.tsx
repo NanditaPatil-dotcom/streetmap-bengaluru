@@ -1,9 +1,8 @@
 "use client";
 
+import { FiCompass, FiRefreshCw, FiSearch, FiX } from "react-icons/fi";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MapRef } from "react-map-gl/maplibre";
-
-// ─── Types ─────────────────────────────────────────────────────────────────────
 
 type Place = {
   _id: string;
@@ -12,7 +11,7 @@ type Place = {
   area: string;
   rating?: number;
   description?: string;
-  distance?: number | null; // metres, from $geoNear
+  distance?: number | null;
   location: { coordinates: [number, number] };
 };
 
@@ -38,50 +37,56 @@ type Props = {
   mapRef: React.MutableRefObject<MapRef | null>;
 };
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const BUBBLE_MESSAGES = [
-  "where to next? ✦",
-  "feeling lucky?",
-  "need a vibe?",
-  "what's the move?",
-  "surprise me ✦",
-  "find me something good",
+  "want help choosing?",
+  "pick a place for me",
+  "not sure where to go?",
+  "need a quick shortlist?",
+  "show me nearby options",
+  "help me decide",
 ];
 
 const MOODS = [
-  { id: "just-vibing",  label: "Just vibing",    icon: "✌️" },
-  { id: "need-coffee",  label: "Need coffee",     icon: "☕" },
-  { id: "touch-grass",  label: "Touch grass",     icon: "🌿" },
-  { id: "quick-bite",   label: "Quick bite",      icon: "🍱" },
-  { id: "late-night",   label: "Late night",      icon: "🌙" },
-  { id: "hidden-gem",   label: "Hidden gem",      icon: "💎" },
+  { id: "just-vibing", label: "Just vibing", icon: "✌️" },
+  { id: "need-coffee", label: "Need coffee", icon: "☕" },
+  { id: "touch-grass", label: "Touch grass", icon: "🌿" },
+  { id: "quick-bite", label: "Quick bite", icon: "🍱" },
+  { id: "late-night", label: "Late night", icon: "🌙" },
+  { id: "hidden-gem", label: "Hidden gem", icon: "📍" },
 ];
 
 const TIMES = [
-  { id: "",        label: "Any time" },
+  { id: "", label: "Any time" },
   { id: "morning", label: "Morning" },
-  { id: "noon",    label: "Noon"    },
+  { id: "noon", label: "Noon" },
   { id: "evening", label: "Evening" },
-  { id: "night",   label: "Night"   },
+  { id: "night", label: "Night" },
 ];
 
 const RADIUS_OPTIONS = [
-  { km: 1,  label: "1 km"   },
-  { km: 2,  label: "2 km"   },
-  { km: 5,  label: "5 km"   },
-  { km: 10, label: "10 km"  },
+  { km: 1, label: "1 km" },
+  { km: 2, label: "2 km" },
+  { km: 5, label: "5 km" },
+  { km: 10, label: "10 km" },
   { km: 50, label: "Anywhere" },
 ];
 
 const CATEGORY_ICONS: Record<string, string> = {
-  cafe:  "☕",
-  food:  "🍽️",
-  malls: "🛍️",
-  park:  "🌳",
+  cafe: "☕",
+  restaurant: "🍽️",
+  "street-food": "🥙",
+  bakery: "🥐",
+  dessert: "🍨",
+  park: "🌳",
+  lake: "🌊",
   metro: "🚇",
-  bmtc:  "🚌",
-  place: "📍",
+  bmtc: "🚌",
+  mall: "🛍️",
+  shopping: "🛒",
+  market: "🏬",
+  library: "📚",
+  "study-cafe": "🪑",
+  default: "📍",
 };
 
 const DEFAULT_FILTERS: Filters = {
@@ -91,8 +96,6 @@ const DEFAULT_FILTERS: Filters = {
   category: "any",
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function formatDistance(metres: number | null | undefined): string {
   if (metres == null) return "";
   if (metres < 1000) return `${Math.round(metres)} m away`;
@@ -100,50 +103,52 @@ function formatDistance(metres: number | null | undefined): string {
 }
 
 function starRow(rating: number | undefined) {
-  const r = Math.round(rating || 0);
-  return "★".repeat(r) + "☆".repeat(5 - r);
+  const roundedRating = Math.round(rating || 0);
+  return "★".repeat(roundedRating) + "☆".repeat(5 - roundedRating);
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+function formatCategory(category: string) {
+  return category
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
 
 export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
   const popupRef = useRef<HTMLDivElement | null>(null);
-
-  // ── Speech bubble ──────────────────────────────────────────────────────────
-  const [bubbleIdx, setBubbleIdx]       = useState(0);
+  const [bubbleIdx, setBubbleIdx] = useState(0);
   const [bubbleVisible, setBubbleVisible] = useState(true);
+  const [open, setOpen] = useState(false);
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [userLat, setUserLat] = useState<number | null>(null);
+  const [userLng, setUserLng] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<Place[]>([]);
+  const [searched, setSearched] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const interval = setInterval(() => {
       setBubbleVisible(false);
       setTimeout(() => {
-        setBubbleIdx((i) => (i + 1) % BUBBLE_MESSAGES.length);
+        setBubbleIdx((index) => (index + 1) % BUBBLE_MESSAGES.length);
         setBubbleVisible(true);
       }, 400);
     }, 3200);
+
     return () => clearInterval(interval);
   }, []);
 
-  // ── Modal state ────────────────────────────────────────────────────────────
-  const [open, setOpen]             = useState(false);
-  const [filters, setFilters]       = useState<Filters>(DEFAULT_FILTERS);
-  const [userLat, setUserLat]       = useState<number | null>(null);
-  const [userLng, setUserLng]       = useState<number | null>(null);
-  const [loading, setLoading]       = useState(false);
-  const [results, setResults]       = useState<Place[]>([]);
-  const [searched, setSearched]     = useState(false);
-  const [error, setError]           = useState("");
-
-  // ── Get user location when modal opens ─────────────────────────────────────
   useEffect(() => {
-    if (!open) return;
-    if (!navigator.geolocation) {
+    if (!open || !navigator.geolocation) {
       return;
     }
+
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setUserLat(pos.coords.latitude);
-        setUserLng(pos.coords.longitude);
+      (position) => {
+        setUserLat(position.coords.latitude);
+        setUserLng(position.coords.longitude);
       },
       () => {
         setUserLat(null);
@@ -154,7 +159,16 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
+    const handleOpen = () => setOpen(true);
+
+    window.addEventListener("streetmap:open-discover", handleOpen);
+    return () => window.removeEventListener("streetmap:open-discover", handleOpen);
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
 
     const handlePointerDown = (event: MouseEvent) => {
       if (!popupRef.current?.contains(event.target as Node)) {
@@ -177,49 +191,49 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
     };
   }, [open]);
 
-  // ── Fetch recommendations ──────────────────────────────────────────────────
-  const fetchRecs = useCallback(async (f: Filters) => {
-    setLoading(true);
-    setError("");
-    setResults([]);
+  const fetchRecommendations = useCallback(
+    async (nextFilters: Filters) => {
+      setLoading(true);
+      setError("");
+      setResults([]);
 
-    try {
-      const body: RecommendRequestBody = {
-        radiusKm: f.radiusKm,
-        category: f.category,
-        mood: f.mood || undefined,
-        mode: f.mode || undefined,
-        count: 3,
-        lat: userLat ?? 12.9716,
-        lng: userLng ?? 77.5946,
-      };
+      try {
+        const body: RecommendRequestBody = {
+          radiusKm: nextFilters.radiusKm,
+          category: nextFilters.category,
+          mood: nextFilters.mood || undefined,
+          mode: nextFilters.mode || undefined,
+          count: 3,
+          lat: userLat ?? 12.9716,
+          lng: userLng ?? 77.5946,
+        };
 
-      const res = await fetch("/api/recommend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+        const response = await fetch("/api/recommend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "No places matched. Try different filters.");
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || "No places matched. Try different filters.");
+        }
+
+        const data: Place[] = await response.json();
+        setResults(data);
+        setSearched(true);
+      } catch (caughtError) {
+        setError(caughtError instanceof Error ? caughtError.message : "Something went wrong.");
+        setSearched(true);
+      } finally {
+        setLoading(false);
       }
+    },
+    [userLat, userLng]
+  );
 
-      const data: Place[] = await res.json();
-      setResults(data);
-      setSearched(true);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Something went wrong.");
-      setSearched(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [userLat, userLng]);
-
-  // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleDiscover = () => fetchRecs(filters);
-
-  const handleRegenerate = () => fetchRecs(filters);
+  const handleDiscover = () => fetchRecommendations(filters);
+  const handleRegenerate = () => fetchRecommendations(filters);
 
   const handleReset = () => {
     setFilters(DEFAULT_FILTERS);
@@ -230,26 +244,24 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
 
   const handlePickPlace = (place: Place) => {
     const [lng, lat] = place.location.coordinates;
+
     if (mapRef.current) {
       mapRef.current.flyTo({ center: [lng, lat], zoom: 17, duration: 1600 });
     }
+
     onPlaceSelect(place);
     setOpen(false);
   };
 
-  const setFilter = <K extends keyof Filters>(key: K, val: Filters[K]) =>
-    setFilters((prev) => ({ ...prev, [key]: val }));
+  const setFilter = <K extends keyof Filters>(key: K, value: Filters[K]) =>
+    setFilters((current) => ({ ...current, [key]: value }));
 
-  // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* ── Floating button + popup ─────────────────────────────────────── */}
       <div
         ref={popupRef}
         className="fixed bottom-12 right-6 z-[1000] flex flex-col items-end gap-2"
       >
-
-        {/* Speech bubble */}
         {!open && (
           <div
             style={{
@@ -257,7 +269,7 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
               transform: bubbleVisible ? "translateY(0) scale(1)" : "translateY(4px) scale(0.97)",
               transition: "opacity 350ms ease, transform 350ms ease",
             }}
-            className="relative whitespace-nowrap rounded-2xl rounded-br-sm bg-white px-3.5 py-2 text-xs font-medium text-[#111] shadow-lg select-none pointer-events-none"
+            className="pointer-events-none relative whitespace-nowrap rounded-2xl rounded-br-sm bg-white px-3.5 py-2 text-xs font-medium text-[#111] shadow-lg select-none"
           >
             {BUBBLE_MESSAGES[bubbleIdx]}
             <span
@@ -274,7 +286,11 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
           >
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold">Find me a place</h2>
+                <h2 className="text-lg font-bold">Help me choose</h2>
+                <p className="mt-1 text-xs leading-relaxed text-white/45">
+                  Start here when you are undecided. The filters around the map are for narrowing
+                  down results once you already know the kind of place you want.
+                </p>
               </div>
               <button
                 aria-label="Close recommendations"
@@ -282,7 +298,7 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
                 onClick={() => setOpen(false)}
                 type="button"
               >
-                ✕
+                <FiX />
               </button>
             </div>
 
@@ -293,21 +309,19 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
                     What&apos;s the mood?
                   </p>
                   <div className="grid grid-cols-3 gap-2">
-                    {MOODS.map((m) => (
+                    {MOODS.map((mood) => (
                       <button
-                        key={m.id}
-                        onClick={() =>
-                          setFilter("mood", filters.mood === m.id ? "" : m.id)
-                        }
+                        key={mood.id}
+                        onClick={() => setFilter("mood", filters.mood === mood.id ? "" : mood.id)}
                         className={`flex flex-col items-center gap-1.5 rounded-2xl border px-2 py-3 text-xs font-medium transition ${
-                          filters.mood === m.id
+                          filters.mood === mood.id
                             ? "border-orange-300 bg-orange-400/15 text-white"
                             : "border-white/10 text-white/65 hover:border-white/25 hover:text-white"
                         }`}
                         type="button"
                       >
-                        <span className="text-xl">{m.icon}</span>
-                        {m.label}
+                        <span className="text-xl">{mood.icon}</span>
+                        {mood.label}
                       </button>
                     ))}
                   </div>
@@ -318,18 +332,18 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
                     How far are you willing to go?
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {RADIUS_OPTIONS.map((r) => (
+                    {RADIUS_OPTIONS.map((radius) => (
                       <button
-                        key={r.km}
-                        onClick={() => setFilter("radiusKm", r.km)}
+                        key={radius.km}
+                        onClick={() => setFilter("radiusKm", radius.km)}
                         className={`rounded-full border px-3 py-1.5 text-xs transition ${
-                          filters.radiusKm === r.km
+                          filters.radiusKm === radius.km
                             ? "border-white bg-white text-black"
                             : "border-white/10 text-white/65 hover:border-white/25 hover:text-white"
                         }`}
                         type="button"
                       >
-                        {r.label}
+                        {radius.label}
                       </button>
                     ))}
                   </div>
@@ -340,24 +354,23 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
                     Time of day
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {TIMES.map((t) => (
+                    {TIMES.map((time) => (
                       <button
-                        key={t.id}
-                        onClick={() => setFilter("mode", t.id)}
+                        key={time.id}
+                        onClick={() => setFilter("mode", time.id)}
                         className={`rounded-full border px-3 py-1.5 text-xs transition ${
-                          filters.mode === t.id
+                          filters.mode === time.id
                             ? "border-white bg-white text-black"
                             : "border-white/10 text-white/65 hover:border-white/25 hover:text-white"
                         }`}
                         type="button"
                       >
-                        {t.label}
+                        {time.label}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                
                 <button
                   onClick={handleDiscover}
                   disabled={loading}
@@ -371,16 +384,17 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
                 >
                   {loading ? (
                     <>
-                      <span
+                      <FiSearch
                         className="inline-block animate-spin text-base"
                         style={{ animationDuration: "0.8s" }}
-                      >
-                        ✦
-                      </span>
+                      />
                       Finding places...
                     </>
                   ) : (
-                    <>✦ Discover</>
+                    <>
+                      <FiCompass className="text-base" />
+                      Discover places
+                    </>
                   )}
                 </button>
               </div>
@@ -404,7 +418,7 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
                     </p>
 
                     <div className="mb-4 space-y-3">
-                      {results.map((place, i) => (
+                      {results.map((place, index) => (
                         <button
                           key={place._id}
                           onClick={() => handlePickPlace(place)}
@@ -415,15 +429,16 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
                             <div className="min-w-0 flex-1">
                               <div className="mb-1 flex items-baseline gap-2">
                                 <span className="shrink-0 text-xs font-mono text-white/30">
-                                  0{i + 1}
+                                  0{index + 1}
                                 </span>
                                 <h3 className="truncate text-base font-semibold leading-tight text-white">
                                   {place.name}
                                 </h3>
                               </div>
 
-                              <p className="mb-2 text-xs capitalize text-white/50">
-                                {CATEGORY_ICONS[place.category] || "📍"} {place.category}
+                              <p className="mb-2 text-xs text-white/50">
+                                {CATEGORY_ICONS[place.category] || CATEGORY_ICONS.default}{" "}
+                                {formatCategory(place.category)}
                                 {place.area ? ` · ${place.area}` : ""}
                               </p>
 
@@ -469,9 +484,12 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
                     type="button"
                   >
                     {loading ? (
-                      <span className="inline-block animate-spin">⟳</span>
+                      <FiRefreshCw className="inline-block animate-spin" />
                     ) : (
-                      <>⟳ Regenerate</>
+                      <>
+                        <FiRefreshCw />
+                        Regenerate
+                      </>
                     )}
                   </button>
                   <button
@@ -479,7 +497,7 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
                     className="flex-1 rounded-2xl border border-white/10 py-2.5 text-xs font-medium text-white/55 transition hover:bg-white/5 hover:text-white"
                     type="button"
                   >
-                    ↺ Reset filters
+                    Reset filters
                   </button>
                 </div>
               </div>
@@ -487,11 +505,10 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
           </div>
         )}
 
-        {/* The button */}
         <button
           aria-expanded={open}
           aria-label="Open recommendations"
-          onClick={() => setOpen((prev) => !prev)}
+          onClick={() => setOpen((current) => !current)}
           style={{
             background: "linear-gradient(135deg, #f97316 0%, #ef4444 50%, #ec4899 100%)",
             boxShadow: "0 0 24px rgba(249,115,22,0.45), 0 4px 16px rgba(0,0,0,0.4)",
@@ -499,15 +516,14 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
           className="flex h-14 w-14 items-center justify-center rounded-full text-2xl text-white transition-transform duration-150 hover:scale-110 active:scale-95 animate-pulse-slow"
           type="button"
         >
-          ✦
+          <FiCompass />
         </button>
       </div>
 
-      {/* ── Pulse animation style ─────────────────────────────────────────── */}
       <style jsx global>{`
         @keyframes pulse-slow {
           0%, 100% { box-shadow: 0 0 24px rgba(249,115,22,0.45), 0 4px 16px rgba(0,0,0,0.4); }
-          50%       { box-shadow: 0 0 36px rgba(249,115,22,0.65), 0 4px 20px rgba(0,0,0,0.5); }
+          50% { box-shadow: 0 0 36px rgba(249,115,22,0.65), 0 4px 20px rgba(0,0,0,0.5); }
         }
         .animate-pulse-slow {
           animation: pulse-slow 2.5s ease-in-out infinite;

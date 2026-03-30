@@ -38,22 +38,27 @@ export default function FooterModes({
           </span>
         </button>
 
-        <div className="flex flex-wrap items-center justify-center gap-1.5">
-          {modes.map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              disabled={!modeEnabled}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium tracking-tight transition ${
-                modeEnabled && mode === m
-                  ? "bg-white text-[#111111]"
-                  : "text-white/78 hover:bg-white/10 hover:text-white"
-              } ${!modeEnabled ? "cursor-not-allowed opacity-40 hover:bg-transparent hover:text-white/78" : ""}`}
-              aria-pressed={modeEnabled && mode === m}
-            >
-              {m.toUpperCase()}
-            </button>
-          ))}
+        <div>
+          <p className="mb-1 text-center text-[10px] font-medium uppercase tracking-[0.18em] text-white/35">
+            Refine by time
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
+            {modes.map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                disabled={!modeEnabled}
+                className={`rounded-full px-4 py-1.5 text-sm font-medium tracking-tight transition ${
+                  modeEnabled && mode === m
+                    ? "bg-white text-[#111111]"
+                    : "text-white/78 hover:bg-white/10 hover:text-white"
+                } ${!modeEnabled ? "cursor-not-allowed opacity-40 hover:bg-transparent hover:text-white/78" : ""}`}
+                aria-pressed={modeEnabled && mode === m}
+              >
+                {m.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="hidden sm:block" />

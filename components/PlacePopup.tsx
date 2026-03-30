@@ -144,7 +144,7 @@ const buildVisibleReviews = ({
   return normalizedReviews;
 };
 
-const displayUserName = (value?: string) => {
+const displayUserName = (value?: string | null) => {
   const trimmedValue = value?.trim();
 
   if (!trimmedValue) {

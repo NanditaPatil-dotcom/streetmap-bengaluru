@@ -19,11 +19,17 @@ const displayUserName = (value?: string | null) => value?.trim().split(" ")[0] |
 const reviewMatchesId = (review: ReviewLike | null | undefined, reviewId: string) =>
   Boolean(review?._id?.toString && review._id.toString() === reviewId);
 
-const sameReviewSignature = (left: ReviewLike | null | undefined, right: ReviewLike | null | undefined) =>
-  Boolean(left && right) &&
-  left.text === right.text &&
-  left.rating === right.rating &&
-  displayUserName(left.author) === displayUserName(right.author);
+const sameReviewSignature = (left: ReviewLike | null | undefined, right: ReviewLike | null | undefined) => {
+  if (!left || !right) {
+    return false;
+  }
+
+  return (
+    left.text === right.text &&
+    left.rating === right.rating &&
+    displayUserName(left.author) === displayUserName(right.author)
+  );
+};
 
 const canDeleteReview = (review: ReviewLike | null | undefined, userId: string, currentUserName: string) =>
   Boolean(review) &&

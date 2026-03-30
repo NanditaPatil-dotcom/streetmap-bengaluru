@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
     const userId = session?.user?.id ?? "";
     const author = session?.user?.name?.trim()?.split(" ")[0] || "Explorer";
-    const body = await req.json();
+    const body: { placeId?: unknown; images?: unknown } = await req.json();
     const placeId = typeof body.placeId === "string" ? body.placeId.trim() : "";
     const images = Array.isArray(body.images)
       ? body.images.filter((image: unknown): image is string => typeof image === "string" && image.trim().length > 0)
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       {
         $push: {
           photos: {
-            $each: images.map((image) => ({
+            $each: images.map((image: string) => ({
               url: image,
               author,
               userId,

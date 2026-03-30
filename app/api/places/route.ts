@@ -275,7 +275,7 @@ export async function POST(req: Request) {
       Array.isArray(body.tags) && body.tags.length > 0
         ? body.tags
             .filter((tag: unknown): tag is string => typeof tag === "string" && tag.trim().length > 0)
-            .map((tag) => tag.trim().toLowerCase())
+            .map((tag: string) => tag.trim().toLowerCase())
         : DEFAULT_CATEGORY_TAGS[normalizedCategory] || [];
     const initialReview =
       initialRating > 0 && typeof body.description === "string" && body.description.trim()

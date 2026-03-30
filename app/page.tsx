@@ -49,6 +49,27 @@ type Place = {
   reviewCount?: number;
 };
 
+type ViewportFocusRequest = {
+  ids: string[];
+  reason: "filters";
+  requestKey: number;
+};
+
+type RegionFocusRequest = {
+  label?: string;
+  normalizedArea?: string;
+  center: [number, number];
+  bounds?: [[number, number], [number, number]];
+  requestKey: number;
+};
+
+type AreaFeedback = {
+  kind: "exact" | "nearby" | "empty";
+  label: string;
+  message: string;
+  resultCount: number;
+} | null;
+
 export default function Home() {
   const mapRef = useRef<MapRef | null>(null);
   const [places, setPlaces] = useState<Place[]>([]);
@@ -59,6 +80,9 @@ export default function Home() {
   const [isAddSidebarOpen, setIsAddSidebarOpen] = useState(false);
   const [activePlaceId, setActivePlaceId] = useState<string | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [viewportFocusRequest, setViewportFocusRequest] = useState<ViewportFocusRequest | null>(null);
+  const [regionFocusRequest, setRegionFocusRequest] = useState<RegionFocusRequest | null>(null);
+  const [areaFeedback, setAreaFeedback] = useState<AreaFeedback>(null);
 
   const [filters, setFilters] = useState({
     areas: [] as string[],
@@ -84,6 +108,19 @@ export default function Home() {
       params.set("area", filters.areas.join(","));
     }
 
+    if (regionFocusRequest) {
+      params.set("areaLabel", regionFocusRequest.label || filters.areas[0] || "");
+      params.set("areaLat", String(regionFocusRequest.center[1]));
+      params.set("areaLng", String(regionFocusRequest.center[0]));
+
+      if (regionFocusRequest.bounds) {
+        params.set("minLng", String(regionFocusRequest.bounds[0][0]));
+        params.set("minLat", String(regionFocusRequest.bounds[0][1]));
+        params.set("maxLng", String(regionFocusRequest.bounds[1][0]));
+        params.set("maxLat", String(regionFocusRequest.bounds[1][1]));
+      }
+    }
+
     if (filters.openNow) {
       params.set("openNow", "true");
     }
@@ -103,13 +140,24 @@ export default function Home() {
       .then((res) => res.json())
       .then((data) => {
         console.log("Final Query:", url, data);
-        setPlaces(Array.isArray(data) ? data : []);
+        const nextPlaces = Array.isArray(data) ? data : Array.isArray(data?.places) ? data.places : [];
+        setPlaces(nextPlaces);
+        setAreaFeedback(data?.meta?.area ?? null);
+        setViewportFocusRequest({
+          ids: nextPlaces
+            .map((place: Place, index: number) => place._id ?? `${place.name}-${index}`)
+            .filter((value: string) => Boolean(value)),
+          reason: "filters",
+          requestKey: Date.now(),
+        });
       })
       .catch((err) => {
         console.error("Failed to fetch places", err);
         setPlaces([]);
+        setAreaFeedback(null);
+        setViewportFocusRequest(null);
       });
-  }, [mapType, modeEnabled, mode, filters]);
+  }, [mapType, modeEnabled, mode, filters, regionFocusRequest]);
 
   const visibleSelectedPlace = useMemo(() => {
     if (!selectedPlace?._id) {
@@ -137,6 +185,26 @@ export default function Home() {
     }
   };
 
+  const handleGlobalPlaceSelect = (place: Place) => {
+    if (place._id) {
+      setPlaces((currentPlaces) => {
+        const existingPlace = currentPlaces.find((currentPlace) => currentPlace._id === place._id);
+
+        if (existingPlace) {
+          return currentPlaces.map((currentPlace) =>
+            currentPlace._id === place._id ? { ...currentPlace, ...place } : currentPlace
+          );
+        }
+
+        return [place, ...currentPlaces];
+      });
+    }
+
+    setSelectedPlace(place);
+    setActivePlaceId(place._id ?? null);
+    setIsAddSidebarOpen(false);
+  };
+
   const handlePlaceUpdated = (updatedPlace: Partial<Place> & { _id?: string }) => {
     if (!updatedPlace._id) {
       return;
@@ -153,6 +221,32 @@ export default function Home() {
         ? ({ ...currentPlace, ...updatedPlace } as Place)
         : currentPlace
     );
+  };
+
+  const handleAreaFocus = (area: {
+    label?: string;
+    normalizedArea?: string;
+    center: [number, number];
+    bounds?: [[number, number], [number, number]];
+  } | null) => {
+    setRegionFocusRequest(
+      area
+        ? {
+            label: area.label,
+            normalizedArea: area.normalizedArea,
+            center: area.center,
+            bounds: area.bounds,
+            requestKey: Date.now(),
+          }
+        : null
+    );
+    if (!area) {
+      setAreaFeedback(null);
+    }
+  };
+
+  const handleOpenDiscover = () => {
+    window.dispatchEvent(new CustomEvent("streetmap:open-discover"));
   };
 
   return (
@@ -177,8 +271,20 @@ export default function Home() {
         mapType={mapType}
         setMapType={setMapType}
         onOpenAuth={() => setIsAuthModalOpen(true)}
+        onPlaceSelect={handleGlobalPlaceSelect}
       />
-      <Filters filters={filters} setFilters={setFilters} />
+      <Filters
+        filters={filters}
+        setFilters={setFilters}
+        onAreaFocus={handleAreaFocus}
+        areaFeedback={areaFeedback}
+        onOpenAddPlace={() => {
+          setSelectedPlace(null);
+          setActivePlaceId(null);
+          setIsAddSidebarOpen(true);
+        }}
+        onOpenDiscover={handleOpenDiscover}
+      />
       <FooterModes
         modeEnabled={modeEnabled}
         setModeEnabled={setModeEnabled}
@@ -189,6 +295,8 @@ export default function Home() {
         places={places}
         mapRef={mapRef}
         activePlaceId={activePlaceId}
+        regionFocusRequest={regionFocusRequest}
+        viewportFocusRequest={viewportFocusRequest}
         onPlaceSelect={handlePlaceSelect}
       />
       <AuthModal
@@ -244,7 +352,7 @@ export default function Home() {
 
        {/* ✦ Recommend button — bottom right, self-contained */}
       <RecommendButton
-        onPlaceSelect={() => {}}
+        onPlaceSelect={handlePlaceSelect}
         mapRef={mapRef}
       />
     

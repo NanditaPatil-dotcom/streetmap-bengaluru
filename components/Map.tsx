@@ -68,11 +68,23 @@ export default function Map({
   places,
   mapRef,
   activePlaceId,
+  regionFocusRequest,
+  viewportFocusRequest,
   onPlaceSelect,
 }: {
   places?: Place[];
   mapRef?: React.MutableRefObject<MapRef | null>;
   activePlaceId?: string | null;
+  regionFocusRequest?: {
+    center: [number, number];
+    bounds?: [[number, number], [number, number]];
+    requestKey: number;
+  } | null;
+  viewportFocusRequest?: {
+    ids: string[];
+    reason: "filters";
+    requestKey: number;
+  } | null;
   onPlaceSelect?: (place: Place | null) => void;
 }) {
   const safePlaces = useMemo(() => (Array.isArray(places) ? places : []), [places]);
@@ -120,7 +132,6 @@ export default function Map({
       return;
     }
 
-    onPlaceSelect?.(activePlace);
     internalMapRef.current.flyTo({
       center: activePlace.location.coordinates,
       zoom: 17,
@@ -128,7 +139,80 @@ export default function Map({
       offset: [-180, 40],
       essential: true,
     });
-  }, [activePlaceId, onPlaceSelect, safePlaces]);
+  }, [activePlaceId, safePlaces]);
+
+  useEffect(() => {
+    if (!internalMapRef.current || !regionFocusRequest || activePlaceId) {
+      return;
+    }
+
+    if (regionFocusRequest.bounds) {
+      internalMapRef.current.fitBounds(regionFocusRequest.bounds, {
+        padding: { top: 80, bottom: 80, left: 420, right: 80 },
+        duration: 1600,
+        essential: true,
+        maxZoom: 14.8,
+      });
+      return;
+    }
+
+    internalMapRef.current.flyTo({
+      center: regionFocusRequest.center,
+      zoom: 13.8,
+      duration: 1600,
+      essential: true,
+    });
+  }, [activePlaceId, regionFocusRequest]);
+
+  useEffect(() => {
+    if (!internalMapRef.current || !viewportFocusRequest || activePlaceId) {
+      return;
+    }
+
+    const focusedPlaces = safePlaces.filter((place, index) =>
+      viewportFocusRequest.ids.includes(place._id ?? `${place.name}-${index}`)
+    );
+
+    if (!focusedPlaces.length) {
+      return;
+    }
+
+    if (focusedPlaces.length === 1) {
+      internalMapRef.current.flyTo({
+        center: focusedPlaces[0].location.coordinates,
+        zoom: 15.5,
+        duration: 1800,
+        essential: true,
+      });
+      return;
+    }
+
+    let minLng = focusedPlaces[0].location.coordinates[0];
+    let maxLng = focusedPlaces[0].location.coordinates[0];
+    let minLat = focusedPlaces[0].location.coordinates[1];
+    let maxLat = focusedPlaces[0].location.coordinates[1];
+
+    focusedPlaces.forEach((place) => {
+      const [lng, lat] = place.location.coordinates;
+      minLng = Math.min(minLng, lng);
+      maxLng = Math.max(maxLng, lng);
+      minLat = Math.min(minLat, lat);
+      maxLat = Math.max(maxLat, lat);
+    });
+
+    internalMapRef.current.fitBounds(
+      [
+        [minLng, minLat],
+        [maxLng, maxLat],
+      ],
+      {
+        padding: { top: 80, bottom: 80, left: 420, right: 80 },
+        duration: 1800,
+        essential: true,
+        maxZoom: 15.5,
+      }
+    );
+  }, [activePlaceId, safePlaces, viewportFocusRequest]);
 
   return (
     <div className="map-container relative" style={{ height: "100vh", width: "100%" }}>
@@ -169,7 +253,10 @@ export default function Map({
                   closePopupTimeoutRef.current = null;
                 }, 120);
               }}
-              onFocus={() => onPlaceSelect?.(place)}
+              onFocus={() => {
+                clearClosePopupTimeout();
+                setHoveredPlaceId(place._id ?? `${place.name}-${index}`);
+              }}
               type="button"
             >
               <Image
@@ -195,6 +282,7 @@ export default function Map({
           >
             <PlacePopup
               place={hoveredPlace}
+              onOpenDetails={() => onPlaceSelect?.(hoveredPlace)}
               onMouseEnter={clearClosePopupTimeout}
               onMouseLeave={() => {
                 clearClosePopupTimeout();

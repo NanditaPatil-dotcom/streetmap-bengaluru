@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type DBPlace = {
   _id: string;
@@ -65,14 +65,36 @@ export type AddedPlace = {
   openTime?: string;
   closeTime?: string;
   tags?: string[];
-  creatorReview?: { text: string; author?: string; rating: number; createdAt?: string } | null;
-  reviews?: Array<{ text: string; author?: string; rating: number; createdAt?: string }>;
+  creatorReview?: { _id?: string; userId?: string; text: string; author?: string; rating: number; createdAt?: string } | null;
+  reviews?: Array<{ _id?: string; userId?: string; text: string; author?: string; rating: number; createdAt?: string }>;
 };
 
-const PLACE_CATEGORIES = ["cafe", "food", "malls", "metro", "bmtc", "park"] as const;
-type PlaceCategory = (typeof PLACE_CATEGORIES)[number];
-const TIME_OPTIONS = ["morning", "noon", "evening", "night"] as const;
-type TimeOption = (typeof TIME_OPTIONS)[number];
+type TimeOption = "morning" | "noon" | "evening" | "night";
+type ValidationField = "place" | "category" | "rating" | "review";
+type CategoryMode = "preset" | "custom";
+
+type CategoryOption = {
+  value: string;
+  label: string;
+  aliases: string[];
+};
+
+const CATEGORY_OPTIONS: CategoryOption[] = [
+  { value: "cafe", label: "Cafe", aliases: ["coffee", "coffee shop", "espresso", "brew"] },
+  { value: "restaurant", label: "Restaurant", aliases: ["food", "dining", "dinner", "meal", "street food", "fast food"] },
+  { value: "bakery", label: "Bakery", aliases: ["bakes", "pastry", "cakes", "bread"] },
+  { value: "park", label: "Park", aliases: ["garden", "green", "playground"] },
+  { value: "mall", label: "Mall", aliases: ["shopping mall", "mall road", "malls"] },
+  { value: "shopping", label: "Shopping", aliases: ["store", "retail", "shop", "market", "marketplace"] },
+  { value: "coworking", label: "Coworking", aliases: ["workspace", "co-working", "office"] },
+  { value: "library", label: "Library", aliases: ["books", "reading"] },
+  { value: "metro", label: "Metro", aliases: ["station", "subway", "train"] },
+  { value: "bmtc", label: "BMTC", aliases: ["bus stop", "bus station", "bus"] },
+  { value: "hospital", label: "Hospital", aliases: ["clinic", "medical", "healthcare"] },
+  { value: "nightlife", label: "Nightlife", aliases: ["club", "clubs", "pub", "bar", "lounge"] },
+];
+
+const TIME_OPTIONS: TimeOption[] = ["morning", "noon", "evening", "night"];
 
 const TIME_TAGS: Record<TimeOption, string> = {
   morning: "breakfast",
@@ -81,26 +103,97 @@ const TIME_TAGS: Record<TimeOption, string> = {
   night: "late-night",
 };
 
-const DEFAULT_CATEGORY_TIMES: Partial<Record<PlaceCategory, TimeOption[]>> = {
+const DEFAULT_CATEGORY_TIMES: Partial<Record<string, TimeOption[]>> = {
   cafe: ["morning", "evening"],
+  restaurant: ["noon", "night"],
+  bakery: ["morning", "evening"],
   park: ["morning", "evening"],
-  food: ["noon", "night"],
+  coworking: ["noon"],
+  nightlife: ["night"],
 };
 
 const ROAD_LIKE_TERMS = ["road", "street", "main road", "cross", "layout", "stage", "phase"];
 
-const inferTagsFromCategory = (category: PlaceCategory) =>
+const normalizeCategory = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+
+const formatCategoryLabel = (value: string) =>
+  value
+    .split("-")
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+
+const inferTagsFromCategory = (category: string) =>
   (DEFAULT_CATEGORY_TIMES[category] ?? []).map((time) => TIME_TAGS[time]);
 
-const categoryFromOSMType = (type: string): string => {
-  if (["cafe"].includes(type)) return "cafe";
-  if (["restaurant", "fast_food", "bar", "pub"].includes(type)) return "food";
-  if (["park", "garden", "nature_reserve"].includes(type)) return "park";
-  if (["station", "subway_entrance", "halt"].includes(type)) return "metro";
-  if (["bus_stop", "bus_station"].includes(type)) return "bmtc";
-  if (["mall"].includes(type)) return "malls";
-  return "food";
+const scoreCategoryMatch = (input: string, option: CategoryOption) => {
+  const normalizedInput = normalizeCategory(input);
+
+  if (!normalizedInput) {
+    return 0;
+  }
+
+  const candidates = [option.value, option.label, ...option.aliases].map((value) => normalizeCategory(value));
+
+  return candidates.reduce((bestScore, candidate) => {
+    if (!candidate) {
+      return bestScore;
+    }
+
+    if (candidate === normalizedInput) {
+      return Math.max(bestScore, 100);
+    }
+
+    if (candidate.includes(normalizedInput) || normalizedInput.includes(candidate)) {
+      return Math.max(bestScore, 80);
+    }
+
+    const inputTokens = normalizedInput.split("-").filter(Boolean);
+    const candidateTokens = candidate.split("-").filter(Boolean);
+    const overlap = inputTokens.filter((token) => candidateTokens.includes(token)).length;
+
+    if (overlap > 0) {
+      return Math.max(bestScore, overlap * 20);
+    }
+
+    return bestScore;
+  }, 0);
 };
+
+const categoryFromOSMType = (type: string) => {
+  if (["cafe"].includes(type)) return "cafe";
+  if (["restaurant", "fast_food"].includes(type)) return "restaurant";
+  if (["bakery"].includes(type)) return "bakery";
+  if (["bar", "pub", "nightclub"].includes(type)) return "nightlife";
+
+  if (["park", "garden"].includes(type)) return "park";
+
+  if (["station", "subway_entrance"].includes(type)) return "metro";
+  if (["bus_stop", "bus_station"].includes(type)) return "bmtc";
+
+  if (["library"].includes(type)) return "library";
+  if (["college", "university", "office"].includes(type)) return "coworking";
+  if (["hospital", "clinic"].includes(type)) return "hospital";
+
+  if (["mall"].includes(type)) return "mall";
+  if (["shop"].includes(type)) return "shopping";
+
+  return "restaurant";
+};
+
+const requiredLabel = (label: string) => (
+  <>
+    {label} <span className="text-red-400">*</span>
+  </>
+);
 
 const isRoadLike = (value?: string) => {
   const normalizedValue = value?.trim().toLowerCase();
@@ -172,7 +265,9 @@ export default function AddPlaceForm({
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [selected, setSelected] = useState<SelectedPlace | null>(null);
-  const [category, setCategory] = useState<PlaceCategory>("food");
+  const [categoryMode, setCategoryMode] = useState<CategoryMode>("preset");
+  const [category, setCategory] = useState("restaurant");
+  const [customCategory, setCustomCategory] = useState("");
   const [bestTimes, setBestTimes] = useState<TimeOption[]>([]);
 
   const [rating, setRating] = useState(0);
@@ -181,22 +276,58 @@ export default function AddPlaceForm({
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<ValidationField, string>>>({});
 
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const customCategoryInputRef = useRef<HTMLInputElement>(null);
+  const reviewInputRef = useRef<HTMLInputElement>(null);
+
+  const effectiveCategory = useMemo(() => {
+    if (categoryMode === "custom") {
+      return normalizeCategory(customCategory);
+    }
+
+    return category;
+  }, [category, categoryMode, customCategory]);
+
+  const suggestedCategories = useMemo(() => {
+    if (categoryMode !== "custom") {
+      return [];
+    }
+
+    const normalizedCustomCategory = normalizeCategory(customCategory);
+
+    if (!normalizedCustomCategory) {
+      return [];
+    }
+
+    return CATEGORY_OPTIONS
+      .map((option) => ({
+        option,
+        score: scoreCategoryMatch(customCategory, option),
+      }))
+      .filter(({ score }) => score > 0)
+      .sort((left, right) => right.score - left.score)
+      .slice(0, 3)
+      .map(({ option }) => option);
+  }, [categoryMode, customCategory]);
 
   const resetForm = () => {
     setQuery("");
     setSearchResults([]);
     setSearching(false);
     setSelected(null);
-    setCategory("food");
+    setCategoryMode("preset");
+    setCategory("restaurant");
+    setCustomCategory("");
     setBestTimes([]);
     setRating(0);
     setHoverRating(0);
     setReview("");
     setSubmitting(false);
     setError("");
+    setFieldErrors({});
   };
 
   useEffect(() => {
@@ -250,6 +381,7 @@ export default function AddPlaceForm({
     setQuery(value);
     setSelected(null);
     setError("");
+    setFieldErrors((current) => ({ ...current, place: undefined }));
 
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -265,39 +397,90 @@ export default function AddPlaceForm({
       setSelected({ source: "db", data: item.item });
       setQuery(item.item.name);
     } else {
+      const inferredCategory = categoryFromOSMType(item.item.type);
       setSelected({ source: "osm", data: item.item });
       setQuery(shortName(item.item, query));
-      setCategory(categoryFromOSMType(item.item.type) as PlaceCategory);
+      setCategoryMode("preset");
+      setCategory(inferredCategory);
+      setCustomCategory("");
       setBestTimes([]);
     }
 
     setSearchResults([]);
     setError("");
+    setFieldErrors((current) => ({ ...current, place: undefined }));
   };
 
-  const handleSubmit = async () => {
-    if (!selected) {
-      setError("Please select a place first.");
+  const handlePresetCategorySelect = (nextCategory: string) => {
+    setCategoryMode("preset");
+    setCategory(nextCategory);
+    setCustomCategory("");
+    setError("");
+    setFieldErrors((current) => ({ ...current, category: undefined }));
+  };
+
+  const handleCustomCategoryChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setCategoryMode("custom");
+    setCustomCategory(event.target.value);
+    setError("");
+    setFieldErrors((current) => ({ ...current, category: undefined }));
+  };
+
+  const focusFirstInvalidField = (errors: Partial<Record<ValidationField, string>>) => {
+    if (errors.place) {
+      inputRef.current?.focus();
       return;
     }
 
-    if (selected.source === "db") {
-      setError("place is already added");
+    if (errors.category) {
+      if (categoryMode === "custom") {
+        customCategoryInputRef.current?.focus();
+      }
       return;
+    }
+
+    if (errors.review) {
+      reviewInputRef.current?.focus();
+    }
+  };
+
+  const validateForm = () => {
+    const nextErrors: Partial<Record<ValidationField, string>> = {};
+
+    if (!selected) {
+      nextErrors.place = "Please search and select a place from the list.";
+    } else if (selected.source === "db") {
+      nextErrors.place = "This place is already on the map. Please pick a new place.";
+    }
+
+    if (categoryMode === "custom") {
+      if (!customCategory.trim()) {
+        nextErrors.category = "Enter a category name or choose one of the suggested categories.";
+      } else if (!effectiveCategory) {
+        nextErrors.category = "Please use a category name with letters or numbers.";
+      }
+    } else if (!category) {
+      nextErrors.category = "Please choose a category.";
     }
 
     if (!rating) {
-      setError("Please add a rating.");
-      return;
-    }
-
-    if (!category) {
-      setError("Please choose a category.");
-      return;
+      nextErrors.rating = "Please add a rating.";
     }
 
     if (!review.trim()) {
-      setError("Please write a short review.");
+      nextErrors.review = "Please write a short review.";
+    }
+
+    return nextErrors;
+  };
+
+  const handleSubmit = async () => {
+    const nextFieldErrors = validateForm();
+
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
+      setError("Please fill in the required fields before submitting.");
+      focusFirstInvalidField(nextFieldErrors);
       return;
     }
 
@@ -306,12 +489,20 @@ export default function AddPlaceForm({
       return;
     }
 
+    if (!selected || selected.source !== "osm") {
+      setError("Please select a valid place first.");
+      return;
+    }
+
     setSubmitting(true);
     setError("");
+    setFieldErrors({});
 
     try {
       const osmPlace = selected.data;
-      const tags = bestTimes.length ? bestTimes.map((time) => TIME_TAGS[time]) : inferTagsFromCategory(category);
+      const tags = bestTimes.length
+        ? bestTimes.map((time) => TIME_TAGS[time])
+        : inferTagsFromCategory(effectiveCategory);
       const createRes = await fetch("/api/places", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -319,7 +510,7 @@ export default function AddPlaceForm({
           name: shortName(osmPlace, query),
           lat: parseFloat(osmPlace.lat),
           lng: parseFloat(osmPlace.lon),
-          category,
+          category: effectiveCategory,
           addedBy: displayUserName(session.user?.name),
           area: shortArea(osmPlace),
           rating,
@@ -329,21 +520,36 @@ export default function AddPlaceForm({
         }),
       });
 
+      const responseData = await createRes.json().catch(() => null);
+
       if (!createRes.ok) {
-        throw new Error("Failed to save place.");
+        const responseError =
+          responseData && typeof responseData.error === "string"
+            ? responseData.error
+            : "Failed to save place.";
+        throw new Error(responseError);
       }
 
-      const created = (await createRes.json()) as AddedPlace;
+      const created = responseData as AddedPlace;
 
       resetForm();
       onSubmitted?.({
         ...created,
+        category: effectiveCategory,
         addedBy: displayUserName(session.user?.name) || created.addedBy,
         rating,
         description: review.trim(),
         tags,
-        creatorReview: { text: review.trim(), author: displayUserName(session.user?.name), rating },
-        reviews: [{ text: review.trim(), author: displayUserName(session.user?.name), rating }],
+        creatorReview:
+          created.creatorReview ?? {
+            text: review.trim(),
+            author: displayUserName(session.user?.name),
+            rating,
+          },
+        reviews:
+          created.reviews && created.reviews.length > 0
+            ? created.reviews
+            : [{ text: review.trim(), author: displayUserName(session.user?.name), rating }],
       });
 
       if (standalone) {
@@ -362,7 +568,6 @@ export default function AddPlaceForm({
   const dbResults = searchResults.filter((result) => result.source === "db");
   const osmResults = searchResults.filter((result) => result.source === "osm");
   const showDropdown = searchResults.length > 0 && !selected;
-  const canSubmit = !!selected && !!category && rating > 0 && review.trim().length > 0;
 
   const toggleBestTime = (time: TimeOption) => {
     setBestTimes((current) =>
@@ -430,7 +635,7 @@ export default function AddPlaceForm({
             )}
 
             <label className="mb-2.5 mt-8 block text-[10px] uppercase tracking-widest text-white">
-              01 -- Find the place
+              {requiredLabel("01 -- Find the place")}
             </label>
 
             <div className="relative">
@@ -440,7 +645,9 @@ export default function AddPlaceForm({
                 value={query}
                 onChange={handleQueryChange}
                 placeholder="Search by name, street, area..."
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-white/20 focus:border-white/25"
+                className={`w-full rounded-xl border bg-white/5 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-white/20 focus:border-white/25 ${
+                  fieldErrors.place ? "border-red-400/60" : "border-white/10"
+                }`}
               />
 
               {searching && (
@@ -475,7 +682,7 @@ export default function AddPlaceForm({
                               {result.item.name}
                             </p>
                             <p className="truncate text-xs text-white/35">
-                              {result.item.area} · {result.item.category}
+                              {result.item.area} · {formatCategoryLabel(result.item.category)}
                             </p>
                           </div>
                         </button>
@@ -514,6 +721,10 @@ export default function AddPlaceForm({
               )}
             </div>
 
+            {fieldErrors.place ? (
+              <p className="mt-2 text-sm text-red-400">{fieldErrors.place}</p>
+            ) : null}
+
             {selected && (
               <div className="mt-2.5 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
                 <span className="text-xs text-green-400">✓</span>
@@ -540,24 +751,97 @@ export default function AddPlaceForm({
             }`}
           >
             <label className="mb-3 block text-[10px] uppercase tracking-widest text-white">
-              02 -- Place category
+              {requiredLabel("02 -- Place category")}
             </label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {PLACE_CATEGORIES.map((option) => (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {CATEGORY_OPTIONS.map((option) => (
                 <button
-                  key={option}
+                  key={option.value}
                   type="button"
-                  onClick={() => setCategory(option)}
-                  className={`rounded-xl border px-3 py-3 text-sm font-medium capitalize transition ${
-                    category === option
+                  onClick={() => handlePresetCategorySelect(option.value)}
+                  className={`rounded-xl border px-3 py-3 text-sm font-medium transition ${
+                    categoryMode === "preset" && category === option.value
                       ? "border-white bg-white text-[#111]"
                       : "border-white/10 bg-white/5 text-white/75 hover:border-white/20 hover:bg-white/10 hover:text-white"
                   }`}
                 >
-                  {option}
+                  {option.label}
                 </button>
               ))}
             </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-white">Can&apos;t find the right category?</p>
+                  <p className="text-xs text-white/40">
+                    Type your own and we&apos;ll suggest the closest existing categories first.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCategoryMode("custom");
+                    setTimeout(() => customCategoryInputRef.current?.focus(), 0);
+                  }}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                    categoryMode === "custom"
+                      ? "border-white bg-white text-[#111]"
+                      : "border-white/10 text-white/70 hover:border-white/25 hover:text-white"
+                  }`}
+                >
+                  Custom category
+                </button>
+              </div>
+
+              <input
+                ref={customCategoryInputRef}
+                type="text"
+                value={customCategory}
+                onChange={handleCustomCategoryChange}
+                placeholder="Example: bookstore, temple, gym, salon"
+                className={`w-full rounded-xl border bg-[#0f0f0f] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/20 focus:border-white/25 ${
+                  fieldErrors.category && categoryMode === "custom" ? "border-red-400/60" : "border-white/10"
+                }`}
+              />
+
+              {suggestedCategories.length > 0 ? (
+                <div className="mt-3">
+                  <p className="mb-2 text-xs uppercase tracking-[0.18em] text-white/35">
+                    Closest existing categories
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedCategories.map((option) => (
+                      <button
+                        key={`suggested-${option.value}`}
+                        type="button"
+                        onClick={() => handlePresetCategorySelect(option.value)}
+                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 transition hover:border-white/25 hover:bg-white/10 hover:text-white"
+                      >
+                        Use {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-white/35">
+                    If these don&apos;t fit, we&apos;ll save your custom category as{" "}
+                    <span className="text-white/70">
+                      {effectiveCategory ? formatCategoryLabel(effectiveCategory) : "your own category"}
+                    </span>.
+                  </p>
+                </div>
+              ) : categoryMode === "custom" && customCategory.trim() ? (
+                <p className="mt-3 text-xs text-white/35">
+                  No close preset found. We&apos;ll save this as{" "}
+                  <span className="text-white/70">
+                    {effectiveCategory ? formatCategoryLabel(effectiveCategory) : customCategory.trim()}
+                  </span>.
+                </p>
+              ) : null}
+            </div>
+
+            {fieldErrors.category ? (
+              <p className="mt-2 text-sm text-red-400">{fieldErrors.category}</p>
+            ) : null}
           </div>
 
           <div
@@ -566,7 +850,7 @@ export default function AddPlaceForm({
             }`}
           >
             <label className="mb-3 block text-[10px] uppercase tracking-widest text-white">
-              03 -- Your rating
+              {requiredLabel("03 -- Your rating")}
             </label>
             <div className="flex gap-3">
               {[1, 2, 3, 4, 5].map((star) => (
@@ -574,7 +858,10 @@ export default function AddPlaceForm({
                   key={star}
                   onMouseEnter={() => setHoverRating(star)}
                   onMouseLeave={() => setHoverRating(0)}
-                  onClick={() => setRating(star)}
+                  onClick={() => {
+                    setRating(star);
+                    setFieldErrors((current) => ({ ...current, rating: undefined }));
+                  }}
                   className="text-3xl transition-transform hover:scale-110 active:scale-95"
                   style={{
                     color:
@@ -592,6 +879,9 @@ export default function AddPlaceForm({
                 </span>
               )}
             </div>
+            {fieldErrors.rating ? (
+              <p className="mt-2 text-sm text-red-400">{fieldErrors.rating}</p>
+            ) : null}
           </div>
 
           <div
@@ -600,17 +890,26 @@ export default function AddPlaceForm({
             }`}
           >
             <label className="mb-2.5 block text-[10px] uppercase tracking-widest text-white">
-              04 -- One line about it
+              {requiredLabel("04 -- One line about it")}
             </label>
             <input
+              ref={reviewInputRef}
               type="text"
               value={review}
-              onChange={(event) => setReview(event.target.value)}
+              onChange={(event) => {
+                setReview(event.target.value);
+                setFieldErrors((current) => ({ ...current, review: undefined }));
+              }}
               placeholder="Best masala dosa in the city, no contest."
               maxLength={120}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-white/20 focus:border-white/25"
+              className={`w-full rounded-xl border bg-white/5 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-white/20 focus:border-white/25 ${
+                fieldErrors.review ? "border-red-400/60" : "border-white/10"
+              }`}
             />
             <p className="mt-1.5 text-right text-xs text-white/20">{review.length}/120</p>
+            {fieldErrors.review ? (
+              <p className="mt-2 text-sm text-red-400">{fieldErrors.review}</p>
+            ) : null}
           </div>
 
           <div
@@ -671,7 +970,7 @@ export default function AddPlaceForm({
         <div className={standalone ? "mt-auto" : "border-t border-white/10 px-5 py-5"}>
           <button
             onClick={handleSubmit}
-            disabled={!canSubmit || submitting || status === "unauthenticated"}
+            disabled={submitting || status === "unauthenticated"}
             className="relative w-full overflow-hidden rounded-xl bg-white py-4 text-sm font-semibold text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-25"
             type="button"
           >
@@ -686,7 +985,7 @@ export default function AddPlaceForm({
           </button>
 
           <p className="mt-5 text-center text-xs leading-relaxed text-white/15">
-            Your contribution goes live immediately and is visible to everyone on the map.
+            Fields marked with * are required. Your contribution goes live immediately and is visible to everyone on the map.
           </p>
         </div>
       </div>

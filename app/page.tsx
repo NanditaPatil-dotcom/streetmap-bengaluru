@@ -49,12 +49,6 @@ type Place = {
   reviewCount?: number;
 };
 
-type ViewportFocusRequest = {
-  ids: string[];
-  reason: "filters";
-  requestKey: number;
-};
-
 type RegionFocusRequest = {
   label?: string;
   normalizedArea?: string;
@@ -80,7 +74,6 @@ export default function Home() {
   const [isAddSidebarOpen, setIsAddSidebarOpen] = useState(false);
   const [activePlaceId, setActivePlaceId] = useState<string | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
-  const [viewportFocusRequest, setViewportFocusRequest] = useState<ViewportFocusRequest | null>(null);
   const [regionFocusRequest, setRegionFocusRequest] = useState<RegionFocusRequest | null>(null);
   const [areaFeedback, setAreaFeedback] = useState<AreaFeedback>(null);
 
@@ -143,19 +136,11 @@ export default function Home() {
         const nextPlaces = Array.isArray(data) ? data : Array.isArray(data?.places) ? data.places : [];
         setPlaces(nextPlaces);
         setAreaFeedback(data?.meta?.area ?? null);
-        setViewportFocusRequest({
-          ids: nextPlaces
-            .map((place: Place, index: number) => place._id ?? `${place.name}-${index}`)
-            .filter((value: string) => Boolean(value)),
-          reason: "filters",
-          requestKey: Date.now(),
-        });
       })
       .catch((err) => {
         console.error("Failed to fetch places", err);
         setPlaces([]);
         setAreaFeedback(null);
-        setViewportFocusRequest(null);
       });
   }, [mapType, modeEnabled, mode, filters, regionFocusRequest]);
 
@@ -296,7 +281,6 @@ export default function Home() {
         mapRef={mapRef}
         activePlaceId={activePlaceId}
         regionFocusRequest={regionFocusRequest}
-        viewportFocusRequest={viewportFocusRequest}
         onPlaceSelect={handlePlaceSelect}
       />
       <AuthModal

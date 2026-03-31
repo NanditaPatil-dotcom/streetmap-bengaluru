@@ -39,9 +39,6 @@ export default function FooterModes({
         </button>
 
         <div>
-          <p className="mb-1 text-center text-[10px] font-medium uppercase tracking-[0.18em] text-white/35">
-            Refine by time
-          </p>
           <div className="flex flex-wrap items-center justify-center gap-1.5">
             {modes.map((m) => (
               <button

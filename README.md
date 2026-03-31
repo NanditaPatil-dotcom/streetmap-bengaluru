@@ -1,4 +1,4 @@
-# StreetMap Bengaluru — Time-Aware Community Map
+# StreetMap Bengaluru - Time-Aware Community Map
 
 A time-aware, community-driven map that helps users discover places based on what they need, where they are, and what time it is.
 
@@ -330,7 +330,7 @@ Some parts of the implementation were assisted by AI tools (ChatGPT, Claude) for
 
 ## Code Ownership and Understanding
 
-All major components — including API design, database schema, filtering logic, and frontend interactions — were implemented and iterated upon by the team.
+All major components - including API design, database schema, filtering logic, and frontend interactions — were implemented and iterated upon by the team.
 
 The architecture reflects deliberate design decisions around scalability, usability, and real-world applicability.
 

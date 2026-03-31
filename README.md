@@ -1,125 +1,159 @@
 # StreetMap Bengaluru - Time-Aware Community Map for Bengaluru
 
+## Live Demo
+[Open StreetMap Bengaluru](https://streetmap-bengaluru.vercel.app/)
+
+---
+
 ## Overview
 
-StreetMap Bengaluru is a community-driven, time-aware mapping platform designed to help users discover places in Bengaluru based on what they want, where they are, and what time it is.
+StreetMap Bengaluru is a time-aware, community-driven mapping platform designed to help users discover places in Bengaluru based on intent, location, and time of day.
 
-It enhances traditional maps by introducing contextual, time-based discovery and local insights.
+Unlike traditional maps, it combines structured data with user-generated insights to create a dynamic and evolving city exploration experience.
 
 ---
 
 ## Problem Statement
 
-Users often struggle to find relevant places at specific times of the day due to:
+Existing map platforms are:
 
-- Inaccurate or outdated timings
-- Lack of time-based filtering
-- Poor visibility of local and niche spots
-- Static map experiences
+- Static and not time-aware  
+- Focused on listings rather than intent  
+- Weak in local discovery and hidden gems  
+- Limited in community-driven insights  
+
+Users struggle to find relevant places based on real-world context like time, mood, and locality.
 
 ---
 
 ## Solution
 
-StreetMap Bengaluru provides:
+StreetMap Bengaluru introduces a 3D discovery model:
 
-- Time-based discovery (morning, noon, evening, night)  
-- Category-based maps (cafes, parks, metro, BMTC)  
-- Location and tag-based filtering  
-- Community-driven place contributions  
+WHAT → Category (cafes, parks, metro, etc.)  
+WHERE → Locality + filters  
+WHEN → Time-based modes (morning, noon, evening, night)  
 
-Also, it intends to provide the functionality for users to find places and leave 
-
----
-
-## Core Concept
-
-The system is structured around three dimensions:
-
-WHAT → Navbar (Map Type)  
-WHERE → Sidebar Filters  
-WHEN → Footer Modes  
+Additionally, it integrates community contributions and personalized recommendations.
 
 ---
 
-## Features
+## Core Features
 
 ### Map Interface
-- Interactive map using Leaflet  
-- Dynamic markers with popups  
-
-### Map Layers (Navbar)
-- Normal Map  
-- Cafe Map  
-- Park Map  
-- Metro Map  
-- BMTC Map  
-
-### Time Modes (Footer)
-- Morning: breakfast, parks, gyms  
-- Noon: lunch, workspaces  
-- Evening: snacks, bakeries  
-- Night: dinner, nightlife  
-
-### Filters
-- Area  
-- Category  
-- Open Now  
-- Tags  
-
-### Community Features
-- Add places  
-- Add tags and descriptions
-
-### Community Layer (In Progress)
-We are building a social layer on top of the map where users can leave comments,
-recommendations, photos, and short videos tied to specific places. The goal is to
-turn each place entry into a living discussion thread — part review platform, part
-local forum. Think of it as community-sourced ground truth for a city, where
-regulars can share things that never make it onto Google Maps: the best seat in
-a café, which hours to avoid, or a hidden entrance to a park.
-
-### Mood-Based Recommendation Engine (Planned)
-We are working on a lightweight recommendation engine that takes user-defined
-inputs — mood, energy level, preferred vibe, time of day — and surfaces relevant
-places including lesser-known spots that would otherwise not appear in standard
-searches. The intent is to move beyond category filters and into intent-aware
-discovery, so the map can answer questions like "I want somewhere quiet and
-green, post-lunch, near Koramangala" without the user needing to manually
-configure every filter.
-
-### Verified Local Contributions
-A structured way for locals and regulars to submit edits, flag outdated timings,
-and add context that static data sources miss. Contributions will be
-community-reviewed before going live.
-
-### Activity Signals
-Surface real-time or historically-derived signals like crowd levels, typical wait
-times, and best-visit windows — sourced from community input rather than
-proprietary APIs, keeping the project fully open.
+- Interactive map using Leaflet
+- Dynamic markers with clustering-ready structure
+- Hover → quick insights
+- Click → detailed place panel
 
 ---
 
-## Tech Stack
+### Navigation System
+
+#### Navbar (WHAT)
+- Normal Map
+- Cafe, Restaurant, Park, Metro, BMTC, etc.
+
+#### Footer (WHEN)
+- Morning
+- Noon
+- Evening
+- Night
+- Auto-detected based on current time
+
+#### Sidebar (WHERE)
+- Locality-based refinement
+- Geo-aware zooming
+- Nearby fallback for low-data areas
+
+---
+
+### Recommendation Engine
+- Personalized place suggestions
+- Context-aware (time + filters + locality)
+- Click → focuses map and opens place details
+- UI redesigned to feel like a discovery engine, not an assistant
+
+---
+
+### Add Place System
+- Minimal required fields with validation
+- Custom category support
+- Inline error handling (no silent failures)
+- Designed for fast contribution
+
+---
+
+### Community Contributions
+- Multiple users can:
+  - Add reviews (tips)
+  - Upload photos
+  - Add menu images
+- Ownership tracking per contribution
+- Users can delete their own content
+
+---
+
+### Reviews System
+- Multiple reviews per place
+- Lightweight tip-based system (not heavy reviews)
+- Dynamic insights shown on map
+- Supports real-world experiences instead of static descriptions
+
+---
+
+### Search System
+- Global place search in navbar
+- Direct access to existing place cards
+- Locality search with:
+  - Enter-to-select
+  - Auto zoom
+  - Fallback suggestions
+
+---
+
+### Filters (Refinement-first Design)
+- Filters repositioned as refinement tools (not discovery)
+- Works alongside recommendation engine
+- Supports:
+  - Category
+  - Locality
+  - Tags
+  - Time
+
+---
+
+### UX Improvements
+- Map auto-focus on:
+  - filter selection
+  - recommendation click
+  - category change
+- Coverage-aware empty states:
+  - “Not many places documented here yet”
+  - CTA: Add place / Discover
+
+---
+
+## Technical Stack
 
 ### Frontend
-- Next.js  
-- React  
-- Tailwind CSS  
-- MapLibre  
+- Next.js
+- React
+- Tailwind CSS
+- React Leaflet
 
 ### Backend
-- Next.js API Routes  
+- Next.js API Routes
 
 ### Database
-- MongoDB (Mongoose)  
+- MongoDB Atlas (Mongoose)
 
 ### Maps
-- OpenStreetMap  
+- OpenStreetMap
 
 ---
 
-## Data Model
+## Data Model (Simplified)
 
 ```json
 {
@@ -130,10 +164,12 @@ proprietary APIs, keeping the project fully open.
     "coordinates": [77.5706, 12.9916]
   },
   "area": "malleshwaram",
-  "tags": ["breakfast", "dosa"],
-  "openTime": "07:00",
-  "closeTime": "11:00",
-  "description": "Best benne dosa"
+  "tags": ["morning", "breakfast"],
+  "description": "Iconic dosa spot",
+  "tips": ["Go before 8 AM", "Very crowded after 9"],
+  "reviews": [],
+  "photos": [],
+  "menuImages": []
 }
 ```
 
@@ -143,9 +179,12 @@ proprietary APIs, keeping the project fully open.
 
 ```
 GET /api/places
+POST /api/places
+POST /api/reviews
+DELETE /api/reviews
 ```
 
-### Supported Filters
+### Filters Supported
 
 ```
 /api/places?category=cafe
@@ -156,56 +195,77 @@ GET /api/places
 
 ---
 
-## Development Progress
+## Development Progress (Incremental Work)
 
-Day 1–2  
-- Project setup  
-- Map rendering  
+### Phase 1
+- Map rendering
+- Basic markers
+- Static dataset
 
-Day 3  
-- Database schema  
-- API setup  
-- Starter dataset  
+### Phase 2
+- MongoDB integration
+- API routes
+- Dynamic data loading
 
-Day 4  
-- Marker rendering  
-- Popups  
+### Phase 3
+- Navbar category filtering
+- Sidebar filters
+- Footer time modes
 
-Day 5  
-- Filters  
-- Category switching  
+### Phase 4
+- Add place functionality
+- Validation and UX fixes
 
-Day 6  
-- Time-based modes  
+### Phase 5
+- Recommendation engine
+- Map interaction improvements
+- Locality refinement system
 
-Day 7  
-- UI improvements  
-- Testing  
+### Phase 6
+- Community contributions
+- Reviews, photos, menu support
+- Delete functionality
 
 ---
 
 ## Unique Value
 
-StreetMap Bengaluru introduces time-aware mapping, enabling users to explore the city based on real-world usage patterns rather than static data.
+- Time-aware mapping system  
+- Recommendation-first discovery model  
+- Community-driven insights instead of static listings  
+- Geo-aware refinement and fallback logic  
+- Dynamic map interaction (focus + navigation)  
 
 ---
 
 ## Future Scope
 
-- User reviews and ratings  
-- Real-time activity indicators  
-- AI-based recommendations  
-- Transit integration  
+### Social Layer
+- Full discussion threads per place  
+- Media-rich contributions (photos/videos)
+- User profiles and contribution history
+
+### Recommendation Engine
+- Mood-based suggestions (work, relax, hangout)
+- Personalized ranking using user behavior
+- Hidden gem discovery
+
+### Map Intelligence
+- Heatmaps for popular areas
+- Real-time crowd/activity signals
+- Advanced geospatial queries
 
 ---
 
 ## Contributors
 
-- Nandita — Frontend, Backend, Database, Map UI  
-- Amrita — Backend, Database, APIs
+- Nandita - Backend, APIs, Frontend, Map UI, UX Design  
+- Amrita - Backend, Database, Recommendation System 
 
 ---
 
 ## Conclusion
 
-StreetMap Bengaluru transforms static maps into a dynamic, community-driven discovery platform tailored to how people actually experience a city.
+StreetMap Bengaluru transforms maps from static tools into dynamic, context-aware, and community-driven platforms.
+
+It reflects how people actually explore cities - based on time, intent, and shared experiences.

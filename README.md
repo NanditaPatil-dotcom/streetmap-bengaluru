@@ -3,6 +3,9 @@
 ## Live Demo
 [Open StreetMap Bengaluru](https://streetmap-bengaluru.vercel.app/)
 
+## Video Demo
+[Video Demo Submission](https://drive.google.com/file/d/1AaOq33R9EysGU_YGc1zYlz-Qo4P22stm/view?usp=sharing)
+
 ---
 
 ## Overview
@@ -259,8 +262,8 @@ DELETE /api/reviews
 
 ## Contributors
 
-- Nandita - Backend, APIs, Frontend, Map UI, UX Design  
-- Amrita - Backend, Database, Recommendation System 
+- Nandita — Backend, APIs, Frontend, Map UI, UX Design  
+- Amrita — Backend, Database, Recommendation System 
 
 ---
 

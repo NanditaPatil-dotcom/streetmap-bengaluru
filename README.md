@@ -1,9 +1,15 @@
-# StreetMap Bengaluru - Time-Aware Community Map for Bengaluru
+# StreetMap Bengaluru - Time-Aware Community Map
+
+A time-aware, community-driven map that helps users discover places based on what they need, where they are, and what time it is.
+
+---
 
 ## Live Demo
+
 [Open StreetMap Bengaluru](https://streetmap-bengaluru.vercel.app/)
 
 ## Video Demo
+
 [Video Demo Submission](https://drive.google.com/file/d/1AaOq33R9EysGU_YGc1zYlz-Qo4P22stm/view?usp=sharing)
 
 ---
@@ -46,7 +52,7 @@ Additionally, it integrates community contributions and personalized recommendat
 ### Map Interface
 - Interactive map using Leaflet
 - Dynamic markers with clustering-ready structure
-- Hover → quick insights
+- Hover → quick insights (dynamic user tips)
 - Click → detailed place panel
 
 ---
@@ -75,49 +81,58 @@ Additionally, it integrates community contributions and personalized recommendat
 - Personalized place suggestions
 - Context-aware (time + filters + locality)
 - Click → focuses map and opens place details
-- UI redesigned to feel like a discovery engine, not an assistant
+- Designed as a discovery engine (not assistant-style UI)
 
 ---
 
 ### Add Place System
 - Minimal required fields with validation
 - Custom category support
-- Inline error handling (no silent failures)
-- Designed for fast contribution
+- Inline error handling (prevents silent failures)
+- Fast and frictionless contribution flow
 
 ---
 
 ### Community Contributions
-- Multiple users can:
-  - Add reviews (tips)
-  - Upload photos
-  - Add menu images
+
+Users can:
+
+- Add reviews (tips)
+- Upload photos
+- Add menu images
+
+Additional capabilities:
+
+- Multiple users can contribute to the same place
 - Ownership tracking per contribution
 - Users can delete their own content
 
 ---
 
-### Reviews System
-- Multiple reviews per place
-- Lightweight tip-based system (not heavy reviews)
-- Dynamic insights shown on map
-- Supports real-world experiences instead of static descriptions
+### Community Insights
+
+- Lightweight, tip-based review system
+- Multiple real-world experiences per place
+- Dynamic tips surfaced directly on map hover
+- Focus on practical insights instead of long reviews
 
 ---
 
 ### Search System
+
 - Global place search in navbar
-- Direct access to existing place cards
+- Direct access to place cards
 - Locality search with:
   - Enter-to-select
-  - Auto zoom
-  - Fallback suggestions
+  - Automatic zoom
+  - Nearby fallback suggestions
 
 ---
 
 ### Filters (Refinement-first Design)
-- Filters repositioned as refinement tools (not discovery)
-- Works alongside recommendation engine
+
+- Filters act as refinement tools (not discovery tools)
+- Integrated with recommendation engine
 - Supports:
   - Category
   - Locality
@@ -127,13 +142,14 @@ Additionally, it integrates community contributions and personalized recommendat
 ---
 
 ### UX Improvements
+
 - Map auto-focus on:
   - filter selection
   - recommendation click
   - category change
 - Coverage-aware empty states:
   - “Not many places documented here yet”
-  - CTA: Add place / Discover
+  - Actions: Add place / Discover
 
 ---
 
@@ -231,6 +247,19 @@ DELETE /api/reviews
 
 ---
 
+## Known Issues
+
+- Duplicate first review bug  
+- Recommendation bar UI overlap  
+- Filter combination inconsistency  
+- Search result naming mismatch  
+- Delete user-added places functionality pending  
+- Review deletion not syncing with overview  
+
+These are actively being worked on.
+
+---
+
 ## Unique Value
 
 - Time-aware mapping system  
@@ -244,31 +273,77 @@ DELETE /api/reviews
 ## Future Scope
 
 ### Social Layer
-- Full discussion threads per place  
-- Media-rich contributions (photos/videos)
-- User profiles and contribution history
+- Discussion threads per place  
+- Media-rich contributions (photos/videos)  
+- User profiles and contribution history  
 
 ### Recommendation Engine
-- Mood-based suggestions (work, relax, hangout)
-- Personalized ranking using user behavior
-- Hidden gem discovery
+- Mood-based suggestions (work, relax, hangout)  
+- Personalized ranking using user behavior  
+- Hidden gem discovery  
 
 ### Map Intelligence
-- Heatmaps for popular areas
-- Real-time crowd/activity signals
-- Advanced geospatial queries
+- Heatmaps for popular areas  
+- Real-time crowd/activity signals  
+- Advanced geospatial queries  
 
 ---
 
 ## Contributors
 
 - Nandita — Backend, APIs, Frontend, Map UI, UX Design  
-- Amrita — Backend, Database, Recommendation System 
+- Amrita — Backend, Database, Recommendation System  
+
+---
+
+## Open Source Compliance
+
+This project is built entirely using open-source technologies and does not rely on closed or proprietary APIs.
+
+- Maps: OpenStreetMap  
+- Framework: Next.js  
+- Database: MongoDB  
+- Mapping Library: Leaflet  
+
+The project is fully reproducible and can be run locally without any paid or restricted services.
+
+---
+
+## Contribution Transparency
+
+All features were developed incrementally during the event duration. The repository reflects continuous progress across:
+
+- Core map functionality  
+- Backend API development  
+- Filtering and time-based logic  
+- Recommendation engine  
+- Community contribution system  
+- UX improvements and bug fixes  
+
+---
+
+## Acknowledgements
+
+Some parts of the implementation were assisted by AI tools (ChatGPT, Claude) for guidance, debugging, and code structuring. All code has been reviewed, modified, and integrated by the team.
+
+---
+
+## Code Ownership and Understanding
+
+All major components - including API design, database schema, filtering logic, and frontend interactions — were implemented and iterated upon by the team.
+
+The architecture reflects deliberate design decisions around scalability, usability, and real-world applicability.
 
 ---
 
 ## Conclusion
 
-StreetMap Bengaluru transforms maps from static tools into dynamic, context-aware, and community-driven platforms.
+StreetMap Bengaluru transforms maps from static tools into dynamic, context-aware, and community-driven experiences.
 
-It reflects how people actually explore cities - based on time, intent, and shared experiences.
+It reflects how people actually explore cities — based on time, intent, and shared experiences.
+
+---
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for details.

@@ -12,6 +12,20 @@ A time-aware, community-driven map that helps users discover places based on wha
 
 [Video Demo Submission](https://drive.google.com/file/d/1AaOq33R9EysGU_YGc1zYlz-Qo4P22stm/view?usp=sharing)
 
+## Screenshots
+
+### Main Map View
+![Main Map](./public/demo/map.png)
+
+### Add Place Flow
+![Add Place](./public/demo/add-place.png)
+
+### Recommendation Engine
+![Recommendations](./public/demo/rec-engine.png)
+
+### Place hover insights
+![Place insights](./public/demo/place-card.png)
+
 ---
 
 ## Overview
@@ -291,8 +305,8 @@ These are actively being worked on.
 
 ## Contributors
 
-- Nandita — Backend, APIs, Frontend, Map UI, UX Design  
-- Amrita — Backend, Database, Recommendation System  
+- Nandita - Backend, APIs, Frontend, Map UI, UX Design  
+- Amrita - Backend, Database, Recommendation System  
 
 ---
 

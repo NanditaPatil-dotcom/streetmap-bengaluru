@@ -20,10 +20,15 @@ type MatchQuery = {
 
 type RecommendedPlace = {
   _id: { toString(): string } | string;
+  category?: string;
+  tags?: string[];
   rating?: number;
   distance?: number | null;
   [key: string]: unknown;
 };
+
+let weatherCache: { code: number; fetchedAt: number } | null = null;
+const WEATHER_TTL = 10 * 60 * 1000;
 
 // Fisher-Yates shuffle — true randomness for regenerate
 function shuffle<T>(arr: T[]): T[] {
@@ -48,6 +53,26 @@ export async function POST(req: Request) {
     mode,
     count = 3,
   } = body;
+  const rainCodes = [51, 53, 55, 61, 63, 65, 80, 81, 82];
+
+  if (!weatherCache || Date.now() - weatherCache.fetchedAt > WEATHER_TTL) {
+    try {
+      const weatherResponse = await fetch(
+        "https://api.open-meteo.com/v1/forecast?latitude=12.9716&longitude=77.5946&current_weather=true"
+      );
+      const weatherData = await weatherResponse.json();
+      const weatherCode =
+        typeof weatherData?.current_weather?.weathercode === "number"
+          ? weatherData.current_weather.weathercode
+          : 0;
+
+      weatherCache = { code: weatherCode, fetchedAt: Date.now() };
+    } catch {
+      weatherCache = { code: 0, fetchedAt: Date.now() };
+    }
+  }
+
+  const isRaining = rainCodes.includes(weatherCache.code);
 
   // ── Mood → tags mapping ────────────────────────────────────────────────────
   const moodTagMap: Record<string, string[]> = {
@@ -147,7 +172,20 @@ export async function POST(req: Request) {
   // Weighted by rating so higher-rated places appear more often
   const weighted: RecommendedPlace[] = [];
   for (const p of places) {
-    const weight = Math.max(1, Math.round((p.rating || 3) * 2));
+    let weight = Math.max(1, Math.round((p.rating || 3) * 2));
+
+    if (isRaining) {
+      const isOutdoor =
+        p.category === "park" ||
+        p.tags?.some((tag) => ["outdoor", "scenic", "garden"].includes(tag));
+
+      if (isOutdoor) {
+        weight = Math.max(1, Math.round(weight * 0.2));
+      } else if (p.category && ["cafe", "mall", "coworking", "library"].includes(p.category)) {
+        weight = Math.round(weight * 1.5);
+      }
+    }
+
     for (let i = 0; i < weight; i++) weighted.push(p);
   }
 
@@ -165,5 +203,5 @@ export async function POST(req: Request) {
     if (unique.length >= count) break;
   }
 
-  return NextResponse.json(unique);
+  return NextResponse.json({ places: unique, isRaining });
 }

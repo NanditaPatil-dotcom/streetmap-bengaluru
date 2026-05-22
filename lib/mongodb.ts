@@ -1,6 +1,11 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI!;
+export class ConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ConfigurationError";
+  }
+}
 
 type MongooseCache = {
   conn: typeof mongoose | null;
@@ -18,12 +23,24 @@ async function connectDB() {
   if (cached.conn) return cached.conn;
 
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI, {
+    const mongodbUri = process.env.MONGODB_URI;
+
+    if (!mongodbUri) {
+      throw new ConfigurationError("MONGODB_URI is not configured.");
+    }
+
+    cached.promise = mongoose.connect(mongodbUri, {
       dbName: "streetmap-bengaluru",
     });
   }
 
-  cached.conn = await cached.promise;
+  try {
+    cached.conn = await cached.promise;
+  } catch (error) {
+    cached.promise = null;
+    throw error;
+  }
+
   return cached.conn;
 }
 

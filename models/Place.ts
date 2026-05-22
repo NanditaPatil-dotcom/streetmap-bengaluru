@@ -116,6 +116,11 @@ const PlaceSchema = new mongoose.Schema({
     }
   ],
 
+  dominantTag: {
+    type: String,
+    default: ""
+  },
+
   menuImages: [MediaSchema],
 
   photos: [MediaSchema],

@@ -1,29 +1,71 @@
 "use client";
 
 import PlacePopup from "@/components/PlacePopup";
-import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import MapView, { Marker, NavigationControl, Popup } from "react-map-gl/maplibre";
 import type { MapRef } from "react-map-gl/maplibre";
 import type { StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-// Custom icons mapping for different place categories
-const icons = {
-  cafe: "/icons/cafe.png",
-  park: "/icons/park.png",
-  metro: "/icons/metro.png",
-  bmtc: "/icons/bus.png",
-  food: "/icons/food.png",
-  mall: "/icons/malls.png",
-  malls: "/icons/malls.png",
-  default: "/icons/default.png",
+const categoryColors = {
+  cafe: "#92400e",
+  food: "#7f1d1d",
+  park: "#166534",
+  metro: "#1e3a5f",
+  bmtc: "#3b1f6e",
+  "street-vendor": "#3f3f46",
+  default: "#374151",
 };
 
-// Function to get the icon for a place category
-function getIcon(category: string): string {
+const tagEmojis = {
+  cozy: "🕯",
+  lively: "🔥",
+  quiet: "🤫",
+  "good-wifi": "📶",
+  "hidden-gem": "💎",
+  scenic: "🌄",
+  "quick-bite": "⚡",
+  coffee: "☕",
+  breakfast: "🌅",
+  food: "🍽",
+};
+
+const categoryEmojis = {
+  cafe: "☕",
+  food: "🍽",
+  park: "🌳",
+  metro: "🚇",
+  bmtc: "🚌",
+  restaurant: "🍽",
+  mall: "🛍",
+  malls: "🛍",
+  nightlife: "🎵",
+  "street-vendor": "⚡",
+  default: "•",
+};
+
+function getCategoryColor(category: string): string {
   const normalizedCategory = category?.toLowerCase().trim();
-  return icons[normalizedCategory as keyof typeof icons] || icons.default;
+  return categoryColors[normalizedCategory as keyof typeof categoryColors] || categoryColors.default;
+}
+
+function getMarkerEmoji(place: Place): string {
+  const normalizedCategory = place.category?.toLowerCase().trim();
+  const normalizedTag = place.dominantTag?.toLowerCase().trim();
+
+  if (normalizedTag && tagEmojis[normalizedTag as keyof typeof tagEmojis]) {
+    return tagEmojis[normalizedTag as keyof typeof tagEmojis];
+  }
+
+  const matchingTag = place.tags
+    ?.map((tag) => tag.toLowerCase().trim())
+    .find((tag) => tagEmojis[tag as keyof typeof tagEmojis]);
+
+  if (matchingTag) {
+    return tagEmojis[matchingTag as keyof typeof tagEmojis];
+  }
+
+  return categoryEmojis[normalizedCategory as keyof typeof categoryEmojis] || categoryEmojis.default;
 }
 
 type Place = {
@@ -41,6 +83,7 @@ type Place = {
   closeTime?: string;
   description?: string;
   tags?: string[];
+  dominantTag?: string;
   creatorReview?: { text: string; author?: string; rating: number; createdAt?: string } | null;
   reviews?: Array<{ text: string; author?: string; rating: number; createdAt?: string }>;
 };
@@ -204,13 +247,23 @@ export default function Map({
               }}
               type="button"
             >
-              <Image
-                src={getIcon(place.category)}
-                alt={place.category}
-                width={30}
-                height={30}
-                className="drop-shadow-lg"
-              />
+              <span
+                aria-hidden="true"
+                style={{
+                  width: "28px",
+                  height: "28px",
+                  backgroundColor: getCategoryColor(place.category),
+                  border: "1.5px solid rgba(255,255,255,0.15)",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "13px",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+                }}
+              >
+                {getMarkerEmoji(place)}
+              </span>
             </button>
           </Marker>
         ))}

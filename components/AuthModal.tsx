@@ -228,14 +228,14 @@ export default function AuthModal({ isOpen, onClose }: Props) {
                 setForm((current) => ({ ...current, password: event.target.value }))
               }
               className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-black/40"
-              placeholder="8+ chars, Aa, symbol"
-              minLength={8}
+              placeholder="12+ chars, Aa, 1, symbol"
+              minLength={12}
+              maxLength={128}
               required
             />
             {mode === "register" ? (
               <p className="mt-2 text-xs text-[#686258]">
-                Use at least 8 characters, 1 uppercase letter, 1 lowercase letter,
-                and 1 symbol.
+                Use 12-128 characters with uppercase, lowercase, a number, and a symbol.
               </p>
             ) : null}
           </label>

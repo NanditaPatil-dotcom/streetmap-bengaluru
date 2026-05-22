@@ -67,6 +67,24 @@ type PlacePopupProps = {
   }) => void;
 };
 
+const emptyVisitTimes = () => Array.from({ length: 24 }, () => 0);
+
+const buildVisitTimesFromReviews = (items: Review[]) => {
+  const hourArray = emptyVisitTimes();
+
+  items.forEach((review) => {
+    const createdAt = new Date(review.createdAt ?? "");
+
+    if (Number.isNaN(createdAt.getTime())) {
+      return;
+    }
+
+    hourArray[createdAt.getHours()] += 1;
+  });
+
+  return hourArray;
+};
+
 const normalizeMedia = (items?: PlaceMedia[]) =>
   (items ?? [])
     .map((item, index) => {
@@ -220,6 +238,8 @@ export default function PlacePopup({
   const currentUserName = displayUserName(session?.user?.name);
   const [reviews, setReviews] = useState(buildVisibleReviews(place));
   const [reviewsLoaded, setReviewsLoaded] = useState(false);
+  const [visitTimes, setVisitTimes] = useState<number[]>(emptyVisitTimes);
+  const [visitTimesLoaded, setVisitTimesLoaded] = useState(false);
   const [activeSection, setActiveSection] = useState<"overview" | "reviews">("overview");
   const [menuUploads, setMenuUploads] = useState<PlaceMedia[]>(place.menuImages ?? place.menu ?? []);
   const [photoUploads, setPhotoUploads] = useState<PlaceMedia[]>(place.photos ?? place.images ?? []);
@@ -248,6 +268,8 @@ export default function PlacePopup({
     setReviewsLoaded(false);
     setReviews(buildVisibleReviews(place));
     setReviewsLoaded(true);
+    setVisitTimes(emptyVisitTimes());
+    setVisitTimesLoaded(false);
     setMenuUploads(place.menuImages ?? place.menu ?? []);
     setPhotoUploads(place.photos ?? place.images ?? []);
     const nextKey = place._id ?? "";
@@ -273,6 +295,53 @@ export default function PlacePopup({
         ? { color: "#fbbf24", label: `Last reviewed ${Math.round(daysSinceMostRecentReview / 30)} months ago` }
         : { color: "rgba(255,255,255,0.2)", label: "Not recently reviewed" }
     : null;
+  const maxVisitTime = Math.max(...visitTimes, 1);
+
+  useEffect(() => {
+    if (!reviewsLoaded || reviews.length === 0 || !place._id) {
+      setVisitTimes(buildVisitTimesFromReviews(reviews));
+      setVisitTimesLoaded(false);
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadVisitTimes = async () => {
+      setVisitTimesLoaded(false);
+
+      try {
+        const response = await fetch(`/api/places/${place._id}/visit-times`);
+        const data = response.ok ? await response.json() : null;
+        const nextVisitTimes = Array.isArray(data)
+          ? data
+              .slice(0, 24)
+              .map((value) => (typeof value === "number" && Number.isFinite(value) ? value : 0))
+          : buildVisitTimesFromReviews(reviews);
+
+        if (isMounted) {
+          setVisitTimes(
+            nextVisitTimes.length === 24 && nextVisitTimes.some((value) => value > 0)
+              ? nextVisitTimes
+              : buildVisitTimesFromReviews(reviews)
+          );
+        }
+      } catch {
+        if (isMounted) {
+          setVisitTimes(buildVisitTimesFromReviews(reviews));
+        }
+      } finally {
+        if (isMounted) {
+          setVisitTimesLoaded(true);
+        }
+      }
+    };
+
+    loadVisitTimes();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [place._id, reviews, reviews.length, reviewsLoaded]);
 
   if (variant === "card") {
     return (
@@ -1011,6 +1080,37 @@ export default function PlacePopup({
                 </div>
               )}
             </section>
+
+            {visitTimesLoaded && reviews.length > 0 ? (
+              <section>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#8b6f4e]">When people visit</h3>
+                <div className="flex h-[32px] items-end gap-[2px]">
+                  {visitTimes.map((count, hour) => {
+                    const isTallest = count === maxVisitTime && maxVisitTime > 0;
+
+                    return (
+                      <div
+                        key={`visit-hour-${hour}`}
+                        className="min-w-0 flex-1"
+                        style={{
+                          height: `${(count / maxVisitTime) * 28 + 4}px`,
+                          backgroundColor: isTallest
+                            ? "rgba(251,146,60,1.0)"
+                            : "rgba(251,146,60,0.45)",
+                          borderRadius: "2px 2px 0 0",
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+                <div className="mt-1 flex justify-between text-[9px] text-[#8b6f4e]/60">
+                  <span>6am</span>
+                  <span>12pm</span>
+                  <span>6pm</span>
+                  <span>12am</span>
+                </div>
+              </section>
+            ) : null}
           </>
         ) : (
           <section className="space-y-3">

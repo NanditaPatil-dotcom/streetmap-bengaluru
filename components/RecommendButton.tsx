@@ -32,6 +32,11 @@ type RecommendRequestBody = {
   lng: number;
 };
 
+type RecommendResponse = {
+  places?: Place[];
+  isRaining?: boolean;
+};
+
 type Props = {
   onPlaceSelect: (place: Place) => void;
   mapRef: React.MutableRefObject<MapRef | null>;
@@ -125,6 +130,7 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
   const [userLng, setUserLng] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Place[]>([]);
+  const [isRaining, setIsRaining] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState("");
 
@@ -196,6 +202,7 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
       setLoading(true);
       setError("");
       setResults([]);
+      setIsRaining(false);
 
       try {
         const body: RecommendRequestBody = {
@@ -219,8 +226,9 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
           throw new Error(data.error || "No places matched. Try different filters.");
         }
 
-        const data: Place[] = await response.json();
-        setResults(data);
+        const data = (await response.json()) as RecommendResponse;
+        setResults(Array.isArray(data.places) ? data.places : []);
+        setIsRaining(Boolean(data.isRaining));
         setSearched(true);
       } catch (caughtError) {
         setError(caughtError instanceof Error ? caughtError.message : "Something went wrong.");
@@ -238,6 +246,7 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
   const handleReset = () => {
     setFilters(DEFAULT_FILTERS);
     setResults([]);
+    setIsRaining(false);
     setSearched(false);
     setError("");
   };
@@ -416,6 +425,29 @@ export default function RecommendButton({ onPlaceSelect, mapRef }: Props) {
                     <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">
                       {results.length} place{results.length !== 1 ? "s" : ""} for you
                     </p>
+
+                    {isRaining ? (
+                      <div className="mb-4 flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          aria-hidden="true"
+                          className="shrink-0 text-white/40"
+                        >
+                          <path d="M20 17.58A5 5 0 0018 8h-1.26A8 8 0 104 15.25" />
+                          <line x1="8" y1="19" x2="8" y2="21" />
+                          <line x1="12" y1="17" x2="12" y2="21" />
+                          <line x1="16" y1="19" x2="16" y2="21" />
+                        </svg>
+                        <p className="text-xs text-white/40">
+                          Raining in Bengaluru — prioritising indoor spots.
+                        </p>
+                      </div>
+                    ) : null}
 
                     <div className="mb-4 space-y-3">
                       {results.map((place, index) => (

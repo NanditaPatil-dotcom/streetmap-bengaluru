@@ -219,6 +219,7 @@ export default function PlacePopup({
   const currentUserId = session?.user?.id ?? "";
   const currentUserName = displayUserName(session?.user?.name);
   const [reviews, setReviews] = useState(buildVisibleReviews(place));
+  const [reviewsLoaded, setReviewsLoaded] = useState(false);
   const [activeSection, setActiveSection] = useState<"overview" | "reviews">("overview");
   const [menuUploads, setMenuUploads] = useState<PlaceMedia[]>(place.menuImages ?? place.menu ?? []);
   const [photoUploads, setPhotoUploads] = useState<PlaceMedia[]>(place.photos ?? place.images ?? []);
@@ -244,7 +245,9 @@ export default function PlacePopup({
   const voteGlobalInFlightRef = useRef(false);
 
   useEffect(() => {
+    setReviewsLoaded(false);
     setReviews(buildVisibleReviews(place));
+    setReviewsLoaded(true);
     setMenuUploads(place.menuImages ?? place.menu ?? []);
     setPhotoUploads(place.photos ?? place.images ?? []);
     const nextKey = place._id ?? "";
@@ -257,6 +260,19 @@ export default function PlacePopup({
   }, [place]);
 
   const displayedRating = averageRatingFromReviews(reviews) ?? place.rating ?? null;
+  const mostRecentReviewDate = reviews.length > 0
+    ? Math.max(...reviews.map((review) => new Date(review.createdAt ?? "").getTime()))
+    : null;
+  const daysSinceMostRecentReview = mostRecentReviewDate === null
+    ? null
+    : (Date.now() - mostRecentReviewDate) / (1000 * 60 * 60 * 24);
+  const freshnessIndicator = reviewsLoaded && mostRecentReviewDate !== null && daysSinceMostRecentReview !== null
+    ? daysSinceMostRecentReview < 30
+      ? { color: "#4ade80", label: "Active recently" }
+      : daysSinceMostRecentReview < 180
+        ? { color: "#fbbf24", label: `Last reviewed ${Math.round(daysSinceMostRecentReview / 30)} months ago` }
+        : { color: "rgba(255,255,255,0.2)", label: "Not recently reviewed" }
+    : null;
 
   if (variant === "card") {
     return (
@@ -278,6 +294,18 @@ export default function PlacePopup({
         {typeof displayedRating === "number" && displayedRating > 0 && (
           <p className="text-sm font-medium text-amber-600">{displayedRating}/5 rating</p>
         )}
+
+        {freshnessIndicator ? (
+          <div className="mt-1 flex items-center gap-1.5">
+            <div
+              className="rounded-full"
+              style={{ width: "6px", height: "6px", backgroundColor: freshnessIndicator.color }}
+            />
+            <span className="text-xs opacity-70" style={{ color: freshnessIndicator.color }}>
+              {freshnessIndicator.label}
+            </span>
+          </div>
+        ) : null}
 
         {place.openTime && place.closeTime && (
           <p className="text-sm">
@@ -738,6 +766,17 @@ export default function PlacePopup({
                     ★
                   </span>
                   <span>{displayedRating.toFixed(1)}</span>
+                </span>
+              ) : null}
+              {freshnessIndicator ? (
+                <span className="mt-1 flex items-center gap-1.5">
+                  <span
+                    className="rounded-full"
+                    style={{ width: "6px", height: "6px", backgroundColor: freshnessIndicator.color }}
+                  />
+                  <span className="text-xs opacity-70" style={{ color: freshnessIndicator.color }}>
+                    {freshnessIndicator.label}
+                  </span>
                 </span>
               ) : null}
               {place.openTime && place.closeTime ? (

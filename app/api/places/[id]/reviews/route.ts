@@ -15,7 +15,7 @@ type ReviewDocument = {
 };
 
 type RouteContext = {
-  params: Promise<{ id: string }> | { id: string };
+  params: Promise<{ id: string }>;
 };
 
 const ReviewSchema = new mongoose.Schema<ReviewDocument>({
